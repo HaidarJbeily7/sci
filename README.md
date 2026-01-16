@@ -1,0 +1,282 @@
+# SCI - Security-Centered Intelligence
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**A comprehensive LLM security testing and compliance framework designed for systematic security evaluation with EU AI Act compliance mapping.**
+
+---
+
+## 🎯 Vision
+
+SCI (Security-Centered Intelligence) is a production-ready framework for systematically testing Large Language Model (LLM) systems against security vulnerabilities and regulatory compliance requirements. Built with EU AI Act compliance in mind, SCI provides structured security assessments with evidence trails suitable for regulatory documentation.
+
+## ✨ Features
+
+- **🔒 Security Testing**: Comprehensive probe library for testing prompt injection, jailbreaking, data extraction, and manipulation vulnerabilities
+- **📋 EU AI Act Compliance**: Built-in compliance mapping to EU AI Act articles and annexes with evidence generation
+- **📊 Structured Reporting**: Generate detailed security reports in multiple formats (JSON, HTML, PDF, Markdown)
+- **🔧 Multi-Provider Support**: Test across OpenAI, Anthropic, Google, Azure, AWS Bedrock, and Hugging Face
+- **📝 Structured Logging**: JSON logging for CI/CD integration with full execution traceability
+- **⚙️ Flexible Configuration**: YAML/JSON configuration with environment variable overrides
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/sci-project/sci.git
+cd sci
+
+# Install in development mode
+pip install -e .
+
+# Or install with development dependencies
+pip install -e ".[dev]"
+```
+
+### Basic Usage
+
+```bash
+# Display help
+sci --help
+
+# Show version
+sci --version
+
+# Initialize configuration
+sci config init
+
+# Run security tests (dry-run)
+sci run --provider openai --model gpt-4 --dry-run
+
+# Generate a report
+sci report --input ./results --format html
+```
+
+### Configuration
+
+Create a configuration file to customize SCI behavior:
+
+```bash
+# Generate default configuration
+sci config init --output settings.yaml
+
+# Validate your configuration
+sci config validate settings.yaml
+
+# View current configuration
+sci config show
+```
+
+## 📁 Project Structure
+
+```
+sci/
+├── src/sci/
+│   ├── cli/              # Command-line interface
+│   │   ├── main.py       # Main CLI application
+│   │   ├── run.py        # sci run command
+│   │   ├── report.py     # sci report command
+│   │   └── config.py     # sci config command
+│   ├── config/           # Configuration management
+│   │   ├── manager.py    # Configuration loading/validation
+│   │   ├── models.py     # Pydantic models
+│   │   └── defaults.py   # Default values
+│   ├── logging/          # Structured logging
+│   │   └── setup.py      # Logging configuration
+│   └── version.py        # Version management
+├── tests/                # Test suite
+├── docs/                 # Documentation
+└── pyproject.toml        # Project configuration
+```
+
+## 🔧 CLI Commands
+
+### `sci run`
+
+Execute security tests against LLM targets.
+
+```bash
+# Run tests with specific provider and model
+sci run --provider openai --model gpt-4
+
+# Use a test profile
+sci run --profile comprehensive --provider anthropic --model claude-3
+
+# Dry run to preview execution
+sci run --dry-run
+
+# List available probes
+sci run probes
+
+# List available detectors
+sci run detectors
+```
+
+### `sci report`
+
+Generate security and compliance reports.
+
+```bash
+# Generate HTML report
+sci report --input ./results --format html --output report.html
+
+# Generate compliance-focused report
+sci report --input ./results --compliance-only
+
+# Generate EU AI Act compliance report
+sci report compliance ./results --articles "9,15"
+```
+
+### `sci config`
+
+Manage SCI configuration.
+
+```bash
+# Initialize configuration
+sci config init
+
+# Validate configuration
+sci config validate settings.yaml
+
+# Show current configuration
+sci config show
+
+# List test profiles
+sci config list-profiles
+```
+
+## ⚙️ Configuration
+
+SCI supports multiple configuration sources with the following precedence:
+
+1. **CLI arguments** (highest priority)
+2. **Environment variables** (`SCI_` prefix)
+3. **Configuration file** (settings.yaml)
+4. **Defaults** (lowest priority)
+
+### Environment Variables
+
+```bash
+# General settings
+export SCI_LOG_LEVEL=DEBUG
+export SCI_LOG_FORMAT=json
+
+# Provider API keys
+export SCI_PROVIDERS__OPENAI__API_KEY=sk-your-key
+export SCI_PROVIDERS__ANTHROPIC__API_KEY=sk-ant-your-key
+```
+
+### Configuration File
+
+```yaml
+# settings.yaml
+logging:
+  level: INFO
+  format: console
+
+output:
+  directory: ./results
+  format: json
+
+profiles:
+  minimal:
+    name: minimal
+    probes:
+      - prompt_injection_basic
+      - jailbreak_basic
+```
+
+See [Configuration Reference](docs/configuration.md) for complete documentation.
+
+## 🧪 Development
+
+### Setup Development Environment
+
+```bash
+# Clone and install
+git clone https://github.com/sci-project/sci.git
+cd sci
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=src/sci --cov-report=html
+
+# Format code
+black src/ tests/
+
+# Lint code
+ruff check src/ tests/
+
+# Type check
+mypy src/
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/unit/test_cli.py
+
+# Run specific test
+pytest tests/unit/test_cli.py::TestMainCLI::test_version_flag
+```
+
+## 🏗️ Architecture
+
+SCI is designed with a layered architecture for extensibility:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        CLI Layer (Typer)                     │
+├─────────────────────────────────────────────────────────────┤
+│                   Configuration Layer (Dynaconf)             │
+├─────────────────────────────────────────────────────────────┤
+│  Compliance │  Security  │ Orchestration │    Adaptive      │
+│    Layer    │Enhancement │     Layer     │  Intelligence    │
+├─────────────────────────────────────────────────────────────┤
+│                    Reporting Layer                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 📋 EU AI Act Compliance
+
+SCI provides built-in mapping to EU AI Act requirements:
+
+- **Article 9**: Risk Management Systems
+- **Article 10**: Data and Data Governance
+- **Article 13**: Transparency and Provision of Information
+- **Article 14**: Human Oversight
+- **Article 15**: Accuracy, Robustness and Cybersecurity
+- **Annex IV**: Technical Documentation Requirements
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+
+## 📚 Documentation
+
+- [Configuration Reference](docs/configuration.md)
+- [CLI Reference](docs/cli-reference.md)
+
+---
+
+**SCI** - Empowering secure and compliant AI deployments.

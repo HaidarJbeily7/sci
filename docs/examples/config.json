@@ -1,0 +1,143 @@
+{
+  "logging": {
+    "level": "INFO",
+    "format": "console",
+    "output": "stdout",
+    "structured": true
+  },
+  "output": {
+    "directory": "./results",
+    "format": "json",
+    "compression": false,
+    "include_timestamps": true
+  },
+  "compliance": {
+    "articles": [
+      "article-9",
+      "article-10",
+      "article-13",
+      "article-14",
+      "article-15"
+    ],
+    "annexes": [
+      "annex-iv"
+    ],
+    "risk_threshold": 0.7,
+    "strict_mode": false,
+    "generate_evidence": true
+  },
+  "profiles": {
+    "quick": {
+      "name": "quick",
+      "description": "Quick security smoke test for CI/CD pipelines",
+      "probes": [
+        "prompt_injection_basic"
+      ],
+      "detectors": [
+        "toxicity_basic"
+      ],
+      "compliance_tags": [],
+      "max_parallel": 5,
+      "timeout": 60
+    },
+    "standard": {
+      "name": "standard",
+      "description": "Standard security assessment for regular testing",
+      "probes": [
+        "prompt_injection_basic",
+        "prompt_injection_advanced",
+        "jailbreak_basic",
+        "jailbreak_roleplay",
+        "extraction_system_prompt"
+      ],
+      "detectors": [
+        "toxicity_basic",
+        "toxicity_advanced",
+        "leakage_basic",
+        "leakage_pii"
+      ],
+      "compliance_tags": [
+        "article-9",
+        "article-15"
+      ],
+      "max_parallel": 5,
+      "timeout": 300
+    },
+    "compliance_full": {
+      "name": "compliance_full",
+      "description": "Complete EU AI Act compliance assessment",
+      "probes": [
+        "prompt_injection_basic",
+        "prompt_injection_advanced",
+        "prompt_injection_multilingual",
+        "jailbreak_basic",
+        "jailbreak_roleplay",
+        "jailbreak_encoding",
+        "extraction_system_prompt",
+        "extraction_training_data",
+        "extraction_model_info",
+        "manipulation_output",
+        "manipulation_context",
+        "compliance_transparency",
+        "compliance_human_oversight"
+      ],
+      "detectors": [
+        "toxicity_basic",
+        "toxicity_advanced",
+        "toxicity_subtle",
+        "leakage_basic",
+        "leakage_pii",
+        "leakage_credentials",
+        "bias_detection",
+        "bias_demographic",
+        "hallucination_factual",
+        "compliance_violation"
+      ],
+      "compliance_tags": [
+        "article-9",
+        "article-10",
+        "article-13",
+        "article-14",
+        "article-15",
+        "annex-iv"
+      ],
+      "max_parallel": 10,
+      "timeout": 900
+    }
+  },
+  "providers": {
+    "openai": {
+      "base_url": "https://api.openai.com/v1",
+      "timeout": 30,
+      "max_retries": 3,
+      "model": "gpt-4"
+    },
+    "anthropic": {
+      "base_url": "https://api.anthropic.com",
+      "timeout": 30,
+      "max_retries": 3,
+      "model": "claude-3-opus-20240229"
+    },
+    "google": {
+      "location": "us-central1",
+      "timeout": 30,
+      "max_retries": 3,
+      "model": "gemini-pro"
+    },
+    "azure": {
+      "api_version": "2024-02-15-preview",
+      "timeout": 30,
+      "max_retries": 3
+    },
+    "aws": {
+      "region": "us-east-1",
+      "timeout": 30,
+      "max_retries": 3
+    },
+    "huggingface": {
+      "base_url": "https://api-inference.huggingface.co",
+      "timeout": 60,
+      "max_retries": 3
+    }
+  }
+}

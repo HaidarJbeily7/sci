@@ -1,0 +1,22 @@
+# Invalid YAML configuration for testing validation
+
+logging:
+  # Invalid log level
+  level: INVALID_LEVEL
+  format: console
+  output: stdout
+
+output:
+  directory: ./test-results
+  # Invalid format
+  format: invalid_format
+  compression: false
+
+profiles:
+  invalid_profile:
+    # Missing required 'name' field structure issue
+    description: "Missing name"
+    # Invalid max_parallel (out of range)
+    max_parallel: 999
+    # Invalid timeout (negative)
+    timeout: -100

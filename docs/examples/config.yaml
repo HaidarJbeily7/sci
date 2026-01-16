@@ -1,0 +1,206 @@
+# =============================================================================
+# SCI - Security-Centered Intelligence
+# Example Configuration File
+# =============================================================================
+# This is a complete example configuration showing all available options.
+# Copy this file to your project root as settings.yaml and customize.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Logging Configuration
+# -----------------------------------------------------------------------------
+# Configure how SCI logs execution information.
+
+logging:
+  # Log level determines verbosity
+  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+
+  # Output format
+  # - "console": Human-readable colored output (development)
+  # - "json": Machine-parseable JSON (CI/CD)
+  format: console
+
+  # Output destination
+  # - "stdout": Standard output
+  # - "stderr": Standard error
+  # - "/path/to/file.log": Log file path
+  output: stdout
+
+  # Enable structured logging with additional context
+  structured: true
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+# Configure where and how test results are saved.
+
+output:
+  # Directory for test results
+  directory: ./results
+
+  # Default output format
+  # Options: json, yaml, html
+  format: json
+
+  # Enable gzip compression for output files
+  compression: false
+
+  # Include timestamps in output filenames
+  # e.g., results_2026-01-16T10-30-00.json
+  include_timestamps: true
+
+# -----------------------------------------------------------------------------
+# EU AI Act Compliance Configuration
+# -----------------------------------------------------------------------------
+# Configure compliance evaluation settings.
+
+compliance:
+  # EU AI Act articles to evaluate against
+  articles:
+    - article-9   # Risk management systems
+    - article-10  # Data and data governance
+    - article-13  # Transparency
+    - article-14  # Human oversight
+    - article-15  # Accuracy, robustness, cybersecurity
+
+  # EU AI Act annexes to include
+  annexes:
+    - annex-iv    # Technical documentation
+
+  # Risk score threshold for compliance (0.0 to 1.0)
+  # Scores above this threshold are flagged as non-compliant
+  risk_threshold: 0.7
+
+  # Enable strict compliance mode
+  # When true, any violation fails the assessment
+  strict_mode: false
+
+  # Generate detailed evidence documentation
+  generate_evidence: true
+
+# -----------------------------------------------------------------------------
+# Test Profiles
+# -----------------------------------------------------------------------------
+# Define reusable test configurations.
+# Use with: sci run --profile <profile_name>
+
+profiles:
+  # Quick smoke test profile
+  quick:
+    name: quick
+    description: Quick security smoke test for CI/CD pipelines
+    probes:
+      - prompt_injection_basic
+    detectors:
+      - toxicity_basic
+    compliance_tags: []
+    max_parallel: 5
+    timeout: 60
+
+  # Standard security assessment
+  standard:
+    name: standard
+    description: Standard security assessment for regular testing
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - extraction_system_prompt
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - leakage_basic
+      - leakage_pii
+    compliance_tags:
+      - article-9
+      - article-15
+    max_parallel: 5
+    timeout: 300
+
+  # Full compliance assessment
+  compliance_full:
+    name: compliance_full
+    description: Complete EU AI Act compliance assessment
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - prompt_injection_multilingual
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+      - extraction_system_prompt
+      - extraction_training_data
+      - extraction_model_info
+      - manipulation_output
+      - manipulation_context
+      - compliance_transparency
+      - compliance_human_oversight
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - toxicity_subtle
+      - leakage_basic
+      - leakage_pii
+      - leakage_credentials
+      - bias_detection
+      - bias_demographic
+      - hallucination_factual
+      - compliance_violation
+    compliance_tags:
+      - article-9
+      - article-10
+      - article-13
+      - article-14
+      - article-15
+      - annex-iv
+    max_parallel: 10
+    timeout: 900
+
+# -----------------------------------------------------------------------------
+# LLM Provider Configuration
+# -----------------------------------------------------------------------------
+# Configure LLM provider settings (non-sensitive).
+# Store API keys in .secrets.yaml or environment variables.
+
+providers:
+  # OpenAI
+  openai:
+    base_url: https://api.openai.com/v1
+    timeout: 30
+    max_retries: 3
+    model: gpt-4
+
+  # Anthropic
+  anthropic:
+    base_url: https://api.anthropic.com
+    timeout: 30
+    max_retries: 3
+    model: claude-3-opus-20240229
+
+  # Google AI (Gemini)
+  google:
+    location: us-central1
+    timeout: 30
+    max_retries: 3
+    model: gemini-pro
+
+  # Azure OpenAI
+  azure:
+    api_version: 2024-02-15-preview
+    timeout: 30
+    max_retries: 3
+    # endpoint and deployment_name should be in .secrets.yaml
+
+  # AWS Bedrock
+  aws:
+    region: us-east-1
+    timeout: 30
+    max_retries: 3
+
+  # Hugging Face Inference API
+  huggingface:
+    base_url: https://api-inference.huggingface.co
+    timeout: 60
+    max_retries: 3

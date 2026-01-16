@@ -1,0 +1,44 @@
+# Valid YAML configuration for testing
+
+logging:
+  level: INFO
+  format: console
+  output: stdout
+  structured: true
+
+output:
+  directory: ./test-results
+  format: json
+  compression: false
+  include_timestamps: true
+
+compliance:
+  articles:
+    - article-9
+    - article-15
+  annexes:
+    - annex-iv
+  risk_threshold: 0.7
+  strict_mode: false
+  generate_evidence: true
+
+profiles:
+  test_profile:
+    name: test_profile
+    description: Profile for testing
+    probes:
+      - prompt_injection_basic
+      - jailbreak_basic
+    detectors:
+      - toxicity_basic
+    compliance_tags:
+      - article-9
+    max_parallel: 3
+    timeout: 120
+
+providers:
+  openai:
+    base_url: https://api.openai.com/v1
+    timeout: 30
+    max_retries: 3
+    model: gpt-4
