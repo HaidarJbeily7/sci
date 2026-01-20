@@ -1,37 +1,22 @@
 """
-Garak Engine for orchestrating LLM security scans.
+GarakEngine - Main orchestration engine for SCI security scans.
 
-This module provides the GarakEngine class that manages the complete scan
-lifecycle, including test profile loading, probe/detector mapping, scan
-execution via GarakClientWrapper, and result aggregation with EU AI Act
-compliance tagging.
-
-Example:
-    >>> from sci.config.models import SCIConfig
-    >>> from sci.engine import GarakEngine
-    >>>
-    >>> config = SCIConfig.model_validate(config_dict)
-    >>> engine = GarakEngine(config)
-    >>>
-    >>> result = engine.execute_scan(
-    ...     provider_name="openai",
-    ...     model_name="gpt-4",
-    ...     profile_name="quick_scan"
-    ... )
+This module provides the GarakEngine class that coordinates the complete
+scan lifecycle including profile loading, probe/detector mapping,
+scan execution, and result aggregation.
 """
 
-from __future__ import annotations
-
-import os
-import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
+from sci.config.manager import ConfigManager
 from sci.config.models import (
+    AWSProviderConfig,
+    AzureProviderConfig,
     GarakConfig,
+    GoogleProviderConfig,
     ProviderConfig,
-    SCIConfig,
     TestProfile,
 )
 from sci.garak.adapters import get_adapter_for_provider, validate_provider_config
@@ -40,969 +25,599 @@ from sci.garak.mappings import (
     ComplianceMapper,
     DetectorMapper,
     ProbeMapper,
-    list_available_detectors,
-    list_available_probes,
+    get_probe_description,
+    get_detector_description,
+    DETECTOR_TYPE_MAPPING,
+    EU_AI_ACT_MAPPING,
 )
-from sci.logging.setup import (
-    get_logger,
-    log_error,
-    log_execution_context,
-    log_execution_end,
-    log_execution_start,
-)
+from sci.logging.setup import get_logger, log_error
+
+# Type alias for progress callback
+ProgressCallback = Callable[[str, float, str], None]
 
 
 class GarakEngine:
     """
-    Orchestrates LLM security scans using the garak framework.
+    Main orchestration engine for security scans.
 
-    This class manages the complete scan lifecycle:
-    - Loading and validating test profiles
-    - Translating SCI probe/detector names to garak identifiers
-    - Configuring provider authentication
+    This class coordinates the complete scan lifecycle including:
+    - Loading test profiles from configuration
+    - Mapping SCI probe/detector names to garak identifiers
+    - Adapting provider configurations for authentication
     - Executing scans via GarakClientWrapper
-    - Aggregating and enriching results with compliance metadata
+    - Aggregating and returning results
 
     Attributes:
-        config: SCIConfig instance with all configuration settings.
-        client: GarakClientWrapper for executing garak scans.
+        config: GarakConfig instance with framework settings.
+        config_manager: ConfigManager for accessing configuration.
+        client: GarakClientWrapper for executing scans.
         probe_mapper: ProbeMapper for translating probe names.
         detector_mapper: DetectorMapper for translating detector names.
-        compliance_mapper: ComplianceMapper for EU AI Act tagging.
+        compliance_mapper: ComplianceMapper for EU AI Act mapping.
         logger: Structured logger for operations.
 
     Example:
-        >>> config = SCIConfig.model_validate(config_dict)
-        >>> engine = GarakEngine(config)
-        >>> result = engine.execute_scan("openai", "gpt-4", "quick_scan")
+        >>> from sci.config.manager import get_config
+        >>> from sci.config.models import GarakConfig
+        >>>
+        >>> config_manager = get_config()
+        >>> config_manager.load()
+        >>> garak_config = GarakConfig(**config_manager.get("garak", {}))
+        >>> engine = GarakEngine(garak_config, config_manager)
+        >>>
+        >>> results = engine.execute_scan(
+        ...     provider_name="openai",
+        ...     model_name="gpt-4",
+        ...     profile_name="standard",
+        ...     output_dir=Path("./results"),
+        ... )
     """
 
-    def __init__(self, config: SCIConfig) -> None:
+    def __init__(
+        self,
+        config: GarakConfig,
+        config_manager: ConfigManager,
+    ) -> None:
         """
         Initialize the GarakEngine.
 
         Args:
-            config: SCIConfig instance containing all configuration settings
-                   including garak config, provider configs, and test profiles.
+            config: GarakConfig instance with framework settings.
+            config_manager: ConfigManager for accessing configuration.
 
         Raises:
-            ImportError: If garak is not installed or version is incompatible.
+            ImportError: If garak is not installed.
         """
         self.config = config
+        self.config_manager = config_manager
         self.logger = get_logger(__name__)
 
-        # Initialize garak client wrapper
-        self.client = GarakClientWrapper(config.garak)
-
-        # Initialize mappers
-        self.probe_mapper = ProbeMapper(config.garak)
-        self.detector_mapper = DetectorMapper(config.garak)
+        # Initialize client and mappers
+        self.client = GarakClientWrapper(config)
+        self.probe_mapper = ProbeMapper(config)
+        self.detector_mapper = DetectorMapper(config)
         self.compliance_mapper = ComplianceMapper()
 
         self.logger.info(
             "garak_engine_initialized",
-            profiles_count=len(config.profiles),
-            garak_enabled=config.garak.enabled,
-            parallelism=config.garak.parallelism,
+            parallelism=config.parallelism,
+            extended_detectors=config.extended_detectors,
         )
 
     def execute_scan(
         self,
         provider_name: str,
         model_name: str,
-        profile_name: Optional[str] = None,
-        output_dir: Optional[Path] = None,
-        probes: Optional[list[str]] = None,
-        detectors: Optional[list[str]] = None,
+        profile_name: str,
+        output_dir: Path,
+        progress_callback: Optional[ProgressCallback] = None,
     ) -> dict[str, Any]:
         """
-        Execute a complete security scan against an LLM.
+        Execute a security scan against an LLM.
 
-        This is the primary method for running security assessments. It handles
-        the full scan lifecycle including profile resolution, probe mapping,
-        provider configuration, scan execution, and result enrichment.
+        This method orchestrates the complete scan workflow:
+        1. Load and validate the test profile
+        2. Map SCI probe names to garak identifiers
+        3. Load and validate provider configuration
+        4. Adapt provider config for authentication
+        5. Execute scan via GarakClientWrapper
+        6. Aggregate and return results with metadata
 
         Args:
-            provider_name: Provider identifier (e.g., "openai", "anthropic").
-            model_name: Model to test (e.g., "gpt-4", "claude-3-opus").
-            profile_name: Optional test profile name from config.profiles.
-                         If not provided, uses default configuration.
-            output_dir: Optional output directory override. If not provided,
-                       uses config.output.directory.
-            probes: Optional list of SCI probe names to override profile probes.
-            detectors: Optional list of SCI detector names to override profile.
+            provider_name: Name of the LLM provider (e.g., "openai").
+            model_name: Model identifier to test (e.g., "gpt-4").
+            profile_name: Name of the test profile to use.
+            output_dir: Directory for storing scan results.
+            progress_callback: Optional callback for progress updates.
+                Signature: (probe_name: str, completion: float, status: str) -> None
 
         Returns:
-            Dictionary containing scan results with structure:
-            {
-                "scan_id": str,
-                "status": "success" | "error",
-                "profile": str,
-                "provider": str,
-                "model": str,
-                "start_time": ISO timestamp,
-                "end_time": ISO timestamp,
-                "duration_ms": float,
-                "probes_executed": list[str],  # Garak format
-                "detectors_applied": list[dict],
-                "findings": list[dict],
-                "summary": dict,
-                "compliance_tags": list[str],
-                "report_path": str,
-                "error": Optional[dict]
-            }
+            Dictionary containing scan results with keys:
+            - scan_id: Unique identifier for the scan
+            - status: Execution status (success, failure, error)
+            - start_time: ISO timestamp of scan start
+            - end_time: ISO timestamp of scan end
+            - duration_ms: Scan duration in milliseconds
+            - provider: Provider name
+            - model: Model name
+            - profile: Profile name used
+            - probes_executed: List of probes that were run
+            - findings: List of vulnerability findings
+            - summary: Summary statistics
+            - compliance_tags: EU AI Act articles covered
+            - report_path: Path to detailed report file
 
-        Example:
-            >>> result = engine.execute_scan(
-            ...     provider_name="openai",
-            ...     model_name="gpt-4",
-            ...     profile_name="quick_scan"
-            ... )
-            >>> print(result["status"])
-            'success'
+        Raises:
+            ValueError: If profile or provider configuration is invalid.
+            RuntimeError: If garak execution fails.
         """
-        scan_id = str(uuid.uuid4())[:8]
         start_time = datetime.now(tz=UTC)
-        perf_start = log_execution_start(
-            f"garak_scan:{scan_id}",
-            {"provider": provider_name, "model": model_name, "profile": profile_name},
-        )
 
         self.logger.info(
             "scan_execution_started",
-            scan_id=scan_id,
             provider=provider_name,
             model=model_name,
             profile=profile_name,
+            output_dir=str(output_dir),
         )
 
-        try:
-            # Step 1: Profile Resolution
-            profile = self._resolve_profile(profile_name, probes, detectors)
-            self.logger.debug(
-                "profile_resolved",
-                scan_id=scan_id,
-                profile_name=profile.name,
-                probes_count=len(profile.probes),
-                detectors_count=len(profile.detectors),
+        # Notify progress callback
+        if progress_callback:
+            progress_callback("Loading configuration", 0.0, "initializing")
+
+        # Load test profile
+        profile = self.get_profile(profile_name)
+        if profile is None:
+            raise ValueError(
+                f"Profile '{profile_name}' not found in configuration. "
+                f"Available profiles: {self.list_available_profiles()}"
             )
 
-            # Step 2: Probe Translation
-            garak_probes = self.probe_mapper.map_probe_list(profile.probes)
-            if not garak_probes:
-                raise ValueError(
-                    f"No valid garak probes found for SCI probes: {profile.probes}"
-                )
-            self.logger.debug(
-                "probes_translated",
-                scan_id=scan_id,
-                sci_probes=profile.probes,
-                garak_probes=garak_probes,
+        # Map SCI probe names to garak identifiers
+        if progress_callback:
+            progress_callback("Mapping probes", 0.1, "mapping")
+
+        garak_probes = self.probe_mapper.map_probe_list(profile.probes)
+        if not garak_probes:
+            raise ValueError(
+                f"No valid garak probes found for profile '{profile_name}'. "
+                f"Profile probes: {profile.probes}"
             )
 
-            # Step 3: Detector Translation
-            garak_detectors = self.detector_mapper.map_detector_list(profile.detectors)
-            detector_configs = [
-                self.detector_mapper.get_detector_config(d) for d in profile.detectors
-            ]
-            self.logger.debug(
-                "detectors_translated",
-                scan_id=scan_id,
-                sci_detectors=profile.detectors,
-                garak_detectors=garak_detectors,
-            )
-
-            # Step 4: Provider Configuration
-            provider_config = self._get_provider_config(provider_name)
-            adapter = get_adapter_for_provider(provider_name)
-            generator_type, env_vars, additional_params = adapter(provider_config)
-            self.logger.debug(
-                "provider_configured",
-                scan_id=scan_id,
-                provider=provider_name,
-                generator_type=generator_type,
-            )
-
-            # Step 5: Validation
-            validation_errors = validate_provider_config(provider_name, provider_config)
-            if validation_errors:
-                raise ValueError(
-                    f"Provider configuration validation failed: {'; '.join(validation_errors)}"
-                )
-
-            # Step 6: Connection Test
-            self.logger.info(
-                "validating_connection",
-                scan_id=scan_id,
-                generator_type=generator_type,
-            )
-            connection_valid = self.client.validate_connection(generator_type, env_vars)
-            if not connection_valid:
-                self.logger.warning(
-                    "connection_validation_failed",
-                    scan_id=scan_id,
-                    generator_type=generator_type,
-                    message="Proceeding with scan despite connection validation failure",
-                )
-
-            # Step 7: Determine Output Directory
-            scan_output_dir = self._resolve_output_dir(output_dir, scan_id)
-
-            # Step 8: Execute Scan
-            self.logger.info(
-                "scan_executing",
-                scan_id=scan_id,
-                phase="probe_execution",
-                probes_count=len(garak_probes),
-            )
-
-            scan_kwargs: dict[str, Any] = {
-                "output_dir": scan_output_dir,
-            }
-            # Add profile-specific settings
-            if profile.timeout:
-                scan_kwargs["timeout"] = profile.timeout
-            # Add additional params from provider adapter
-            scan_kwargs.update(additional_params)
-
-            raw_result = self.client.run_scan(
-                generator_type=generator_type,
-                model_name=model_name,
-                probes=garak_probes,
-                env_vars=env_vars,
-                **scan_kwargs,
-            )
-
-            # Step 9: Result Enrichment
-            end_time = datetime.now(tz=UTC)
-            duration_ms = (end_time - start_time).total_seconds() * 1000
-
-            # Get compliance tags for the probes executed
-            compliance_tags = self.compliance_mapper.get_compliance_tags(
-                profile.probes, profile.detectors
-            )
-
-            result = {
-                "scan_id": scan_id,
-                "status": raw_result.get("status", "success"),
-                "profile": profile.name,
-                "profile_description": profile.description,
-                "provider": provider_name,
-                "model": model_name,
-                "start_time": start_time.isoformat(),
-                "end_time": end_time.isoformat(),
-                "duration_ms": round(duration_ms, 2),
-                "probes_executed": garak_probes,
-                "sci_probes": profile.probes,
-                "detectors_applied": detector_configs,
-                "findings": raw_result.get("findings", []),
-                "summary": raw_result.get("summary", {}),
-                "compliance_tags": compliance_tags,
-                "report_path": raw_result.get("report_path"),
-                "error": raw_result.get("error"),
-            }
-
-            log_execution_end(
-                f"garak_scan:{scan_id}",
-                perf_start,
-                status=result["status"],
-                result={
-                    "findings_count": len(result["findings"]),
-                    "compliance_tags": compliance_tags,
-                },
-            )
-
-            self.logger.info(
-                "scan_completed",
-                scan_id=scan_id,
-                status=result["status"],
-                duration_ms=result["duration_ms"],
-                findings_count=len(result["findings"]),
-                compliance_tags_count=len(compliance_tags),
-            )
-
-            return result
-
-        except Exception as e:
-            end_time = datetime.now(tz=UTC)
-            duration_ms = (end_time - start_time).total_seconds() * 1000
-
-            log_error(
-                e,
-                context={
-                    "scan_id": scan_id,
-                    "provider": provider_name,
-                    "model": model_name,
-                    "profile": profile_name,
-                },
-                command=f"garak_scan:{scan_id}",
-            )
-
-            return {
-                "scan_id": scan_id,
-                "status": "error",
-                "profile": profile_name or "default",
-                "provider": provider_name,
-                "model": model_name,
-                "start_time": start_time.isoformat(),
-                "end_time": end_time.isoformat(),
-                "duration_ms": round(duration_ms, 2),
-                "probes_executed": [],
-                "detectors_applied": [],
-                "findings": [],
-                "summary": {},
-                "compliance_tags": [],
-                "report_path": None,
-                "error": {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "troubleshooting": self._get_troubleshooting_hint(e),
-                },
-            }
-
-    def execute_batch_scan(
-        self,
-        targets: list[dict[str, str]],
-        profile_name: Optional[str] = None,
-        output_dir: Optional[Path] = None,
-    ) -> dict[str, Any]:
-        """
-        Execute scans across multiple models or providers.
-
-        Iterates through the provided targets and executes scans for each,
-        aggregating results into a batch report. Partial failures are handled
-        gracefully - if one target fails, the others continue.
-
-        Args:
-            targets: List of target dictionaries with structure:
-                    [{"provider": str, "model": str}, ...]
-            profile_name: Optional test profile name to use for all scans.
-            output_dir: Optional output directory override.
-
-        Returns:
-            Dictionary containing batch results:
-            {
-                "batch_id": str,
-                "status": "success" | "partial" | "error",
-                "start_time": ISO timestamp,
-                "end_time": ISO timestamp,
-                "duration_ms": float,
-                "total_targets": int,
-                "successful": int,
-                "failed": int,
-                "results": list[dict],  # Individual scan results
-                "summary": dict
-            }
-
-        Example:
-            >>> targets = [
-            ...     {"provider": "openai", "model": "gpt-4"},
-            ...     {"provider": "anthropic", "model": "claude-3-opus"},
-            ... ]
-            >>> batch_result = engine.execute_batch_scan(targets, "quick_scan")
-        """
-        batch_id = str(uuid.uuid4())[:8]
-        start_time = datetime.now(tz=UTC)
-        perf_start = log_execution_start(
-            f"garak_batch_scan:{batch_id}",
-            {"targets_count": len(targets), "profile": profile_name},
+        self.logger.debug(
+            "probes_mapped",
+            sci_probes=profile.probes,
+            garak_probes=garak_probes,
         )
 
+        # Load provider configuration
+        if progress_callback:
+            progress_callback("Loading provider config", 0.2, "configuring")
+
+        provider_config = self._load_provider_config(provider_name)
+
+        # Validate provider configuration
+        validation_errors = validate_provider_config(provider_name, provider_config)
+        if validation_errors:
+            raise ValueError(
+                f"Provider configuration validation failed: {'; '.join(validation_errors)}"
+            )
+
+        # Get adapter and prepare authentication
+        adapter = get_adapter_for_provider(provider_name)
+        generator_type, env_vars, additional_params = adapter(provider_config)
+
+        # Override model name if specified in CLI (takes precedence over config)
+        effective_model = model_name or provider_config.model
+        if not effective_model:
+            raise ValueError(
+                f"Model name is required. Specify via --model flag or in provider config."
+            )
+
+        # Log scan initiation (mask credentials)
         self.logger.info(
-            "batch_scan_started",
-            batch_id=batch_id,
-            targets_count=len(targets),
-            profile=profile_name,
+            "scan_initiating",
+            generator_type=generator_type,
+            model=effective_model,
+            probes_count=len(garak_probes),
+            env_vars_count=len(env_vars),
         )
 
-        results: list[dict[str, Any]] = []
-        successful = 0
-        failed = 0
+        # Execute scan
+        if progress_callback:
+            progress_callback("Executing probes", 0.3, "scanning")
 
-        for idx, target in enumerate(targets):
-            provider = target.get("provider", "")
-            model = target.get("model", "")
+        scan_results = self.client.run_scan(
+            generator_type=generator_type,
+            model_name=effective_model,
+            probes=garak_probes,
+            env_vars=env_vars,
+            output_dir=output_dir,
+            **additional_params,
+        )
 
-            if not provider or not model:
-                self.logger.warning(
-                    "invalid_target_skipped",
-                    batch_id=batch_id,
-                    target_index=idx,
-                    target=target,
-                )
-                failed += 1
-                results.append({
-                    "target": target,
-                    "status": "error",
-                    "error": {
-                        "type": "InvalidTarget",
-                        "message": "Target must have 'provider' and 'model' fields",
-                    },
-                })
-                continue
+        # Get compliance tags for the probes executed
+        compliance_tags = self.compliance_mapper.get_compliance_tags(
+            probes=profile.probes,
+            detectors=profile.detectors,
+        )
 
-            self.logger.info(
-                "batch_target_executing",
-                batch_id=batch_id,
-                target_index=idx,
-                total_targets=len(targets),
-                provider=provider,
-                model=model,
-                progress_percent=round((idx / len(targets)) * 100, 1),
-            )
-
-            result = self.execute_scan(
-                provider_name=provider,
-                model_name=model,
-                profile_name=profile_name,
-                output_dir=output_dir,
-            )
-
-            results.append(result)
-
-            if result["status"] == "success":
-                successful += 1
-            else:
-                failed += 1
-
-            self.logger.debug(
-                "batch_target_completed",
-                batch_id=batch_id,
-                target_index=idx,
-                status=result["status"],
-            )
+        # Aggregate results
+        if progress_callback:
+            progress_callback("Processing results", 0.9, "finalizing")
 
         end_time = datetime.now(tz=UTC)
         duration_ms = (end_time - start_time).total_seconds() * 1000
 
-        # Determine overall status
-        if failed == 0:
-            overall_status = "success"
-        elif successful == 0:
-            overall_status = "error"
-        else:
-            overall_status = "partial"
-
-        # Aggregate summary
-        all_findings: list[dict] = []
-        all_compliance_tags: set[str] = set()
-        for r in results:
-            all_findings.extend(r.get("findings", []))
-            all_compliance_tags.update(r.get("compliance_tags", []))
-
-        batch_result = {
-            "batch_id": batch_id,
-            "status": overall_status,
+        result = {
+            "scan_id": scan_results.get("scan_id", "unknown"),
+            "status": scan_results.get("status", "error"),
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
             "duration_ms": round(duration_ms, 2),
-            "total_targets": len(targets),
-            "successful": successful,
-            "failed": failed,
-            "results": results,
-            "summary": {
-                "total_findings": len(all_findings),
-                "compliance_tags": sorted(all_compliance_tags),
-                "success_rate": round((successful / len(targets)) * 100, 1)
-                if targets
-                else 0,
-            },
+            "provider": provider_name,
+            "model": effective_model,
+            "profile": profile_name,
+            "profile_description": profile.description,
+            "probes_requested": profile.probes,
+            "probes_executed": garak_probes,
+            "detectors_configured": profile.detectors,
+            "findings": scan_results.get("findings", []),
+            "summary": scan_results.get("summary", {}),
+            "compliance_tags": compliance_tags,
+            "report_path": scan_results.get("report_path"),
+            "error": scan_results.get("error"),
         }
 
-        log_execution_end(
-            f"garak_batch_scan:{batch_id}",
-            perf_start,
-            status=overall_status,
-            result={
-                "successful": successful,
-                "failed": failed,
-                "total_findings": len(all_findings),
-            },
-        )
+        if progress_callback:
+            progress_callback("Complete", 1.0, "done")
 
         self.logger.info(
-            "batch_scan_completed",
-            batch_id=batch_id,
-            status=overall_status,
-            duration_ms=round(duration_ms, 2),
-            successful=successful,
-            failed=failed,
-            total_findings=len(all_findings),
+            "scan_execution_completed",
+            scan_id=result["scan_id"],
+            status=result["status"],
+            duration_ms=result["duration_ms"],
+            findings_count=len(result["findings"]),
         )
 
-        return batch_result
+        return result
 
-    def validate_scan_config(
+    def validate_configuration(
         self,
         provider_name: str,
-        profile_name: Optional[str] = None,
-        probes: Optional[list[str]] = None,
-    ) -> tuple[bool, list[str]]:
+        profile_name: str,
+    ) -> dict[str, Any]:
         """
-        Pre-flight validation before scan execution.
+        Validate configuration before scan execution.
 
-        Validates all configuration elements required for a successful scan
-        without actually executing the scan.
+        Checks that the profile and provider are properly configured
+        with all required settings.
 
         Args:
-            provider_name: Provider identifier to validate.
-            profile_name: Optional profile name to validate.
-            probes: Optional list of SCI probe names to validate.
+            provider_name: Name of the provider to validate.
+            profile_name: Name of the profile to validate.
 
         Returns:
-            Tuple of (is_valid: bool, errors: list[str]).
-            If is_valid is True, errors will be empty.
-
-        Example:
-            >>> is_valid, errors = engine.validate_scan_config("openai", "quick_scan")
-            >>> if not is_valid:
-            ...     print("Validation errors:", errors)
+            Dictionary with validation results:
+            - is_valid: True if configuration is valid
+            - errors: List of error messages
+            - warnings: List of warning messages
         """
         errors: list[str] = []
+        warnings: list[str] = []
 
-        self.logger.debug(
-            "validating_scan_config",
-            provider=provider_name,
-            profile=profile_name,
-            probes=probes,
-        )
-
-        # 1. Validate provider exists
-        try:
-            provider_config = self._get_provider_config(provider_name)
-        except ValueError as e:
-            errors.append(str(e))
-            return False, errors
-
-        # 2. Validate provider config has required fields
-        validation_errors = validate_provider_config(provider_name, provider_config)
-        errors.extend(validation_errors)
-
-        # 3. Validate profile exists if specified
-        if profile_name and profile_name not in self.config.profiles:
+        # Check if profile exists
+        profile = self.get_profile(profile_name)
+        if profile is None:
             errors.append(
                 f"Profile '{profile_name}' not found. "
-                f"Available profiles: {list(self.config.profiles.keys())}"
+                f"Available profiles: {self.list_available_profiles()}"
             )
+        elif not profile.probes:
+            errors.append(f"Profile '{profile_name}' has no probes configured.")
 
-        # 4. Validate probes can be mapped
-        probe_list = probes or []
-        if profile_name and profile_name in self.config.profiles:
-            profile = self.config.profiles[profile_name]
-            probe_list = probes or profile.probes
-
-        for probe in probe_list:
-            try:
-                self.probe_mapper.map_probe_name(probe)
-            except ValueError as e:
-                errors.append(f"Probe mapping error: {e}")
-
-        # 5. Validate detectors can be mapped
-        if profile_name and profile_name in self.config.profiles:
-            profile = self.config.profiles[profile_name]
-            for detector in profile.detectors:
-                try:
-                    self.detector_mapper.map_detector_name(detector)
-                except ValueError as e:
-                    errors.append(f"Detector mapping error: {e}")
-
-        # 6. Validate output directory is writable
-        output_path = Path(self.config.output.directory)
+        # Check if provider exists
         try:
-            output_path.mkdir(parents=True, exist_ok=True)
-            # Test write permission
-            test_file = output_path / ".sci_write_test"
-            test_file.touch()
-            test_file.unlink()
-        except (OSError, PermissionError) as e:
-            errors.append(f"Output directory not writable: {e}")
+            provider_config = self._load_provider_config(provider_name)
+
+            # Validate provider configuration
+            validation_errors = validate_provider_config(provider_name, provider_config)
+            errors.extend(validation_errors)
+
+            # Check for missing API key (warning if might be in environment)
+            if not provider_config.api_key:
+                warnings.append(
+                    f"API key not found in config for {provider_name}. "
+                    f"Ensure it's set via environment variable."
+                )
+
+        except ValueError as e:
+            errors.append(str(e))
+
+        # Validate garak is installed
+        try:
+            self.client.validate_installation()
+        except ImportError as e:
+            errors.append(str(e))
 
         is_valid = len(errors) == 0
 
-        self.logger.info(
-            "scan_config_validated",
+        self.logger.debug(
+            "configuration_validated",
             provider=provider_name,
             profile=profile_name,
             is_valid=is_valid,
             errors_count=len(errors),
+            warnings_count=len(warnings),
         )
 
-        return is_valid, errors
+        return {
+            "is_valid": is_valid,
+            "errors": errors,
+            "warnings": warnings,
+        }
 
-    def get_available_probes(
+    def get_profile(self, profile_name: Optional[str] = None) -> Optional[TestProfile]:
+        """
+        Load a test profile from configuration.
+
+        Args:
+            profile_name: Name of the profile to load.
+                If None, returns the default "standard" profile.
+
+        Returns:
+            TestProfile instance or None if not found.
+        """
+        name = profile_name or "standard"
+
+        # Try to get profile from config
+        profile_data = self.config_manager.get(f"profiles.{name}")
+
+        if profile_data is None:
+            # Check if it's a built-in profile
+            profile_data = self._get_builtin_profile(name)
+
+        if profile_data is None:
+            self.logger.warning(
+                "profile_not_found",
+                profile_name=name,
+            )
+            return None
+
+        try:
+            # Ensure name is in the data
+            if isinstance(profile_data, dict):
+                profile_data["name"] = name
+                return TestProfile.model_validate(profile_data)
+            else:
+                self.logger.warning(
+                    "invalid_profile_data",
+                    profile_name=name,
+                    data_type=type(profile_data).__name__,
+                )
+                return None
+        except Exception as e:
+            self.logger.error(
+                "profile_parse_error",
+                profile_name=name,
+                error=str(e),
+            )
+            return None
+
+    def list_available_profiles(self) -> list[str]:
+        """
+        List all available test profiles.
+
+        Returns:
+            List of profile names with their descriptions.
+        """
+        profiles = []
+
+        # Get profiles from config
+        config_profiles = self.config_manager.get("profiles", {})
+        if isinstance(config_profiles, dict):
+            profiles.extend(config_profiles.keys())
+
+        # Add built-in profiles
+        builtin = ["standard", "minimal", "comprehensive"]
+        for name in builtin:
+            if name not in profiles:
+                profiles.append(name)
+
+        return sorted(profiles)
+
+    def list_probes(
         self,
         category: Optional[str] = None,
         compliance_tag: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
-        List available probes with optional filtering.
+        List available security probes.
 
         Args:
-            category: Optional category filter (e.g., "prompt_injection").
-            compliance_tag: Optional EU AI Act tag filter (e.g., "article-15").
+            category: Optional category filter.
+            compliance_tag: Optional EU AI Act compliance tag filter.
 
         Returns:
-            List of probe dictionaries with metadata:
-            [
-                {
-                    "name": str,
-                    "garak_probes": list[str],
-                    "category": str,
-                    "compliance_tags": list[str],
-                    "description": str
-                },
-                ...
-            ]
-
-        Example:
-            >>> probes = engine.get_available_probes(compliance_tag="article-15")
-            >>> for p in probes:
-            ...     print(f"{p['name']}: {p['compliance_tags']}")
+            List of probe information dictionaries with keys:
+            - sci_name: SCI probe name
+            - garak_module: Garak module identifier
+            - description: Human-readable description
+            - compliance_tags: EU AI Act articles
+            - category: Probe category
         """
-        self.logger.debug(
-            "listing_available_probes",
-            category=category,
-            compliance_tag=compliance_tag,
-        )
+        probes_list = []
 
-        # Get probes from garak client (grouped by module)
-        garak_probes_by_module = list_available_probes(self.client)
+        # Get all probe mappings from config
+        probe_categories = self.config.probe_categories
 
-        # Build list of SCI probes with metadata
-        result: list[dict[str, Any]] = []
-
-        for sci_name, garak_module in self.config.garak.probe_categories.items():
-            # Extract category from sci_name
+        for sci_name, garak_module in probe_categories.items():
+            # Extract category from probe name
             probe_category = sci_name.split("_")[0]
 
             # Apply category filter
-            if category and not sci_name.startswith(category):
+            if category and probe_category != category:
                 continue
 
             # Get compliance tags
-            articles = self.compliance_mapper.get_articles_for_probe(sci_name)
+            tags = self.compliance_mapper.get_articles_for_probe(sci_name)
 
             # Apply compliance tag filter
-            if compliance_tag and compliance_tag not in articles:
+            if compliance_tag and compliance_tag not in tags:
                 continue
 
-            # Get garak probes for this SCI probe
+            # Get garak probes for this mapping
             try:
                 garak_probes = self.probe_mapper.map_probe_name(sci_name)
             except ValueError:
                 garak_probes = []
 
-            result.append({
-                "name": sci_name,
+            probes_list.append({
+                "sci_name": sci_name,
                 "garak_module": garak_module,
                 "garak_probes": garak_probes,
+                "description": get_probe_description(garak_module),
+                "compliance_tags": tags,
                 "category": probe_category,
-                "compliance_tags": articles,
-                "risk_level": self.compliance_mapper.get_risk_category(
-                    sci_name
-                ).value,
-                "description": self.compliance_mapper.get_compliance_description(
-                    probe_category
-                ),
             })
 
-        self.logger.info(
-            "probes_listed",
-            total_count=len(result),
-            category_filter=category,
-            compliance_filter=compliance_tag,
-        )
+        return sorted(probes_list, key=lambda x: x["sci_name"])
 
-        return result
-
-    def get_available_detectors(
+    def list_detectors(
         self,
         category: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
-        List available detectors with optional filtering.
+        List available response detectors.
 
         Args:
-            category: Optional category filter (e.g., "toxicity").
+            category: Optional category filter.
 
         Returns:
-            List of detector dictionaries with metadata:
-            [
-                {
-                    "name": str,
-                    "garak_detectors": list[str],
-                    "category": str,
-                    "level": str,
-                    "config": dict
-                },
-                ...
-            ]
-
-        Example:
-            >>> detectors = engine.get_available_detectors(category="toxicity")
-            >>> for d in detectors:
-            ...     print(f"{d['name']}: level={d['level']}")
+            List of detector information dictionaries with keys:
+            - sci_name: SCI detector name
+            - garak_detectors: List of garak detector identifiers
+            - description: Human-readable description
+            - category: Detector category
+            - level: Detection level (basic, advanced, subtle)
         """
-        self.logger.debug(
-            "listing_available_detectors",
-            category=category,
-        )
-
-        # Get all available detectors
-        all_detectors = list_available_detectors(self.client)
-
-        # Build list with metadata from DETECTOR_TYPE_MAPPING
-        from sci.garak.mappings import DETECTOR_TYPE_MAPPING
-
-        result: list[dict[str, Any]] = []
+        detectors_list = []
 
         for sci_name, config in DETECTOR_TYPE_MAPPING.items():
-            # Extract category from sci_name
+            # Extract category from detector name
             detector_category = sci_name.split("_")[0]
 
             # Apply category filter
-            if category and not sci_name.startswith(category):
+            if category and detector_category != category:
                 continue
 
-            result.append({
-                "name": sci_name,
+            detectors_list.append({
+                "sci_name": sci_name,
                 "garak_detectors": config.get("detectors", []),
+                "description": get_detector_description(config.get("detectors", [""])[0]),
                 "category": detector_category,
                 "level": config.get("level", "basic"),
-                "config": {
-                    k: v for k, v in config.items() if k not in ("detectors", "level")
-                },
+                "threshold": config.get("threshold", 0.5),
             })
 
-        self.logger.info(
-            "detectors_listed",
-            total_count=len(result),
-            category_filter=category,
-        )
+        return sorted(detectors_list, key=lambda x: x["sci_name"])
 
-        return result
-
-    def _resolve_profile(
-        self,
-        profile_name: Optional[str],
-        probes_override: Optional[list[str]],
-        detectors_override: Optional[list[str]],
-    ) -> TestProfile:
+    def _load_provider_config(self, provider_name: str) -> ProviderConfig:
         """
-        Resolve test profile with command-line overrides.
+        Load provider configuration from config manager.
 
         Args:
-            profile_name: Optional profile name to load.
-            probes_override: Optional probes list to override profile probes.
-            detectors_override: Optional detectors list to override profile.
+            provider_name: Name of the provider.
 
         Returns:
-            Resolved TestProfile instance.
-        """
-        # Load base profile or create default
-        if profile_name and profile_name in self.config.profiles:
-            base_profile = self.config.profiles[profile_name]
-            profile_dict = base_profile.model_dump()
-        else:
-            # Use default profile settings
-            profile_dict = {
-                "name": profile_name or "default",
-                "description": "Default scan profile",
-                "probes": list(self.config.garak.probe_categories.keys())[:3],
-                "detectors": ["toxicity_basic", "leakage_basic"],
-                "compliance_tags": [],
-                "max_parallel": self.config.garak.parallelism,
-                "timeout": self.config.garak.timeout,
-            }
-
-        # Apply overrides
-        if probes_override:
-            profile_dict["probes"] = probes_override
-        if detectors_override:
-            profile_dict["detectors"] = detectors_override
-
-        return TestProfile.model_validate(profile_dict)
-
-    def _get_provider_config(self, provider_name: str) -> ProviderConfig:
-        """
-        Get provider configuration from config or environment.
-
-        Args:
-            provider_name: Provider name to look up.
-
-        Returns:
-            ProviderConfig instance.
+            ProviderConfig instance for the provider.
 
         Raises:
-            ValueError: If provider not found in configuration.
+            ValueError: If provider configuration is missing or invalid.
         """
         provider_key = provider_name.lower().replace("-", "_")
+        provider_data = self.config_manager.get(f"providers.{provider_key}", {})
 
-        # Try to get from config.providers
-        if self.config.providers:
-            provider_config = getattr(self.config.providers, provider_key, None)
-            if provider_config:
-                # Check for environment variable overrides
-                return self._apply_env_overrides(provider_key, provider_config)
+        if not isinstance(provider_data, dict):
+            provider_data = {}
 
-        # Try to build from environment variables
-        env_config = self._build_provider_from_env(provider_key)
-        if env_config:
-            return env_config
-
-        raise ValueError(
-            f"Provider '{provider_name}' not found in configuration. "
-            f"Configure it in the config file or set environment variables."
-        )
-
-    def _apply_env_overrides(
-        self,
-        provider_key: str,
-        config: ProviderConfig,
-    ) -> ProviderConfig:
-        """Apply environment variable overrides to provider config."""
-        config_dict = config.model_dump()
-
-        # Map of provider to environment variable names
-        env_mapping = {
-            "openai": {"api_key": "OPENAI_API_KEY"},
-            "anthropic": {"api_key": "ANTHROPIC_API_KEY"},
-            "google": {"api_key": "GOOGLE_API_KEY"},
-            "azure": {
-                "api_key": "AZURE_OPENAI_API_KEY",
-                "endpoint": "AZURE_OPENAI_ENDPOINT",
-            },
-            "aws": {
-                "access_key_id": "AWS_ACCESS_KEY_ID",
-                "secret_access_key": "AWS_SECRET_ACCESS_KEY",
-                "region": "AWS_REGION",
-            },
-            "huggingface": {"api_key": "HUGGINGFACE_API_KEY"},
-        }
-
-        mapping = env_mapping.get(provider_key, {})
-        for config_key, env_var in mapping.items():
-            env_value = os.environ.get(env_var)
-            if env_value and not config_dict.get(config_key):
-                config_dict[config_key] = env_value
-
-        return type(config).model_validate(config_dict)
-
-    def _build_provider_from_env(self, provider_key: str) -> Optional[ProviderConfig]:
-        """Build provider configuration from environment variables."""
-        from sci.config.models import (
-            AWSProviderConfig,
-            AzureProviderConfig,
-            GoogleProviderConfig,
-        )
-
-        env_configs = {
-            "openai": (
-                ProviderConfig,
-                {"api_key": os.environ.get("OPENAI_API_KEY")},
-            ),
-            "anthropic": (
-                ProviderConfig,
-                {"api_key": os.environ.get("ANTHROPIC_API_KEY")},
-            ),
-            "google": (
-                GoogleProviderConfig,
-                {
-                    "api_key": os.environ.get("GOOGLE_API_KEY"),
-                    "project_id": os.environ.get("GOOGLE_CLOUD_PROJECT"),
-                },
-            ),
-            "azure": (
-                AzureProviderConfig,
-                {
-                    "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
-                    "endpoint": os.environ.get("AZURE_OPENAI_ENDPOINT"),
-                    "deployment_name": os.environ.get("AZURE_OPENAI_DEPLOYMENT"),
-                },
-            ),
-            "aws": (
-                AWSProviderConfig,
-                {
-                    "access_key_id": os.environ.get("AWS_ACCESS_KEY_ID"),
-                    "secret_access_key": os.environ.get("AWS_SECRET_ACCESS_KEY"),
-                    "region": os.environ.get("AWS_REGION", "us-east-1"),
-                },
-            ),
-            "bedrock": (
-                AWSProviderConfig,
-                {
-                    "access_key_id": os.environ.get("AWS_ACCESS_KEY_ID"),
-                    "secret_access_key": os.environ.get("AWS_SECRET_ACCESS_KEY"),
-                    "region": os.environ.get("AWS_REGION", "us-east-1"),
-                },
-            ),
-            "huggingface": (
-                ProviderConfig,
-                {"api_key": os.environ.get("HUGGINGFACE_API_KEY")},
-            ),
-        }
-
-        if provider_key not in env_configs:
-            return None
-
-        config_class, config_data = env_configs[provider_key]
-
-        # Check if any required env vars are set
-        if not any(v for v in config_data.values() if v):
-            return None
-
-        return config_class.model_validate(config_data)
-
-    def _resolve_output_dir(
-        self,
-        output_dir_override: Optional[Path],
-        scan_id: str,
-    ) -> Path:
-        """Resolve and create output directory for scan results."""
-        base_dir = output_dir_override or Path(self.config.output.directory)
-
-        if self.config.output.include_timestamps:
-            timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
-            output_dir = base_dir / f"scan_{timestamp}_{scan_id}"
+        # Select appropriate config class based on provider
+        if provider_key == "azure":
+            return AzureProviderConfig.model_validate(provider_data)
+        elif provider_key in ("aws", "bedrock"):
+            return AWSProviderConfig.model_validate(provider_data)
+        elif provider_key == "google":
+            return GoogleProviderConfig.model_validate(provider_data)
         else:
-            output_dir = base_dir / f"scan_{scan_id}"
+            return ProviderConfig.model_validate(provider_data)
 
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return output_dir
+    def _get_builtin_profile(self, name: str) -> Optional[dict[str, Any]]:
+        """
+        Get built-in profile definitions.
 
-    def _get_troubleshooting_hint(self, error: Exception) -> str:
-        """Generate troubleshooting hint based on error type."""
-        error_type = type(error).__name__
-        error_msg = str(error).lower()
+        Args:
+            name: Profile name.
 
-        hints = {
-            "authentication": (
-                "Check that your API key is correct and has not expired. "
-                "Verify the key is set in your config file or environment variables."
-            ),
-            "connection": (
-                "Check your network connection and firewall settings. "
-                "Verify the provider's API endpoint is accessible."
-            ),
-            "timeout": (
-                "The request timed out. Consider increasing the timeout setting "
-                "or reducing the number of probes in parallel."
-            ),
-            "rate_limit": (
-                "You've hit the provider's rate limit. Wait a few minutes "
-                "and try again, or reduce parallelism settings."
-            ),
-            "invalid": (
-                "Check your configuration values. Ensure provider name, "
-                "model name, and probe names are spelled correctly."
-            ),
+        Returns:
+            Profile data dictionary or None.
+        """
+        builtin_profiles = {
+            "minimal": {
+                "description": "Quick scan with minimal probes for fast validation",
+                "probes": ["prompt_injection_basic"],
+                "detectors": ["toxicity_basic"],
+                "compliance_tags": ["article-15"],
+                "max_parallel": 5,
+                "timeout": 120,
+            },
+            "standard": {
+                "description": "Standard security scan covering common vulnerabilities",
+                "probes": [
+                    "prompt_injection_basic",
+                    "jailbreak_basic",
+                    "extraction_system_prompt",
+                ],
+                "detectors": [
+                    "toxicity_basic",
+                    "leakage_basic",
+                ],
+                "compliance_tags": ["article-9", "article-15"],
+                "max_parallel": 10,
+                "timeout": 300,
+            },
+            "comprehensive": {
+                "description": "Comprehensive security scan for EU AI Act compliance",
+                "probes": [
+                    "prompt_injection_basic",
+                    "prompt_injection_advanced",
+                    "jailbreak_basic",
+                    "jailbreak_roleplay",
+                    "jailbreak_encoding",
+                    "extraction_system_prompt",
+                    "extraction_training_data",
+                    "manipulation_output",
+                    "compliance_transparency",
+                    "compliance_human_oversight",
+                ],
+                "detectors": [
+                    "toxicity_basic",
+                    "toxicity_advanced",
+                    "leakage_basic",
+                    "leakage_pii",
+                    "bias_detection",
+                    "hallucination_factual",
+                ],
+                "compliance_tags": [
+                    "article-9",
+                    "article-10",
+                    "article-13",
+                    "article-14",
+                    "article-15",
+                    "annex-iv",
+                ],
+                "max_parallel": 5,
+                "timeout": 600,
+            },
         }
 
-        for keyword, hint in hints.items():
-            if keyword in error_msg or keyword in error_type.lower():
-                return hint
-
-        return (
-            "Check the error message for details. Verify your configuration "
-            "and ensure garak is properly installed with 'pip install garak>=2.0.0'."
-        )
+        return builtin_profiles.get(name)
