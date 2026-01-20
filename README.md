@@ -24,6 +24,37 @@ SCI (Security-Centered Intelligence) is a production-ready framework for systema
 
 ### Installation
 
+#### Using UV (Recommended)
+
+[UV](https://docs.astral.sh/uv/) is a fast Python package manager that provides faster dependency resolution, automatic virtual environment management, and reproducible builds via lock files.
+
+```bash
+# Install UV (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install UV (Windows)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Clone the repository
+git clone https://github.com/sci-project/sci.git
+cd sci
+
+# Install the project (creates virtual environment automatically)
+uv sync
+
+# Or install with development dependencies
+uv sync --all-extras
+
+# Run the CLI
+uv run sci --help
+```
+
+> **Note**: The `uv.lock` file ensures reproducible builds across all environments. It should be committed to version control.
+
+#### Using pip
+
+If you prefer traditional pip-based installation:
+
 ```bash
 # Clone the repository
 git clone https://github.com/sci-project/sci.git
@@ -41,6 +72,7 @@ pip install -e ".[dev]"
 ```bash
 # Display help
 sci --help
+# Or explicitly with UV: uv run sci --help
 
 # Show version
 sci --version
@@ -54,6 +86,8 @@ sci run --provider openai --model gpt-4 --dry-run
 # Generate a report
 sci report --input ./results --format html
 ```
+
+> **Note**: After running `uv sync`, commands like `sci` work directly. You can also use `uv run sci` for explicit execution without activating the virtual environment.
 
 ### Configuration
 
@@ -199,26 +233,30 @@ See [Configuration Reference](docs/configuration.md) for complete documentation.
 # Clone and install
 git clone https://github.com/sci-project/sci.git
 cd sci
-pip install -e ".[dev]"
+uv sync --all-extras
 
 # Install pre-commit hooks
 pre-commit install
 
 # Run tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=src/sci --cov-report=html
+uv run pytest --cov=src/sci --cov-report=html
 
 # Format code
-black src/ tests/
+uv run black src/ tests/
 
 # Lint code
-ruff check src/ tests/
+uv run ruff check src/ tests/
 
 # Type check
-mypy src/
+uv run mypy src/
 ```
+
+> **Note**: The `uv run` prefix automatically manages the virtual environment, so you don't need to activate it manually. The `uv.lock` file ensures all developers use identical dependency versions—commit it to version control.
+>
+> **Troubleshooting**: If `uv run sci` doesn't work, ensure UV is in your PATH or use the full path to the UV executable.
 
 ### Running Tests
 

@@ -210,3 +210,18 @@ precision = 2
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.uv]
+# UV-specific configuration (optional)
+# UV automatically reads dependencies from [project.dependencies]
+# and [project.optional-dependencies]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "types-PyYAML>=6.0.0",
+]
