@@ -3,7 +3,7 @@ GarakEngine - Main orchestration engine for SCI security scans.
 
 This module provides the GarakEngine class that coordinates the complete
 scan lifecycle including profile loading, probe/detector mapping,
-scan execution, and result aggregation.
+scan execution, result processing, and report generation.
 """
 
 from datetime import UTC, datetime
@@ -16,8 +16,17 @@ from sci.config.models import (
     AzureProviderConfig,
     GarakConfig,
     GoogleProviderConfig,
+    OutputConfig,
     ProviderConfig,
+    SCIConfig,
     TestProfile,
+)
+from sci.engine.results import (
+    GarakResultProcessor,
+    ResultStorageManager,
+    ScanReport,
+    ResultProcessingError,
+    StorageError,
 )
 from sci.garak.adapters import get_adapter_for_provider, validate_provider_config
 from sci.garak.client import GarakClientWrapper
@@ -97,6 +106,20 @@ class GarakEngine:
         self.probe_mapper = ProbeMapper(config)
         self.detector_mapper = DetectorMapper(config)
         self.compliance_mapper = ComplianceMapper()
+
+        # Build SCIConfig for result processor
+        sci_config = self._build_sci_config()
+
+        # Initialize result processor and storage manager
+        self.result_processor = GarakResultProcessor(sci_config)
+
+        # Get output config from config_manager
+        output_config_data = config_manager.get("output", {})
+        if isinstance(output_config_data, dict):
+            output_config = OutputConfig.model_validate(output_config_data)
+        else:
+            output_config = OutputConfig()
+        self.storage_manager = ResultStorageManager(output_config)
 
         self.logger.info(
             "garak_engine_initialized",
@@ -244,7 +267,7 @@ class GarakEngine:
 
         # Aggregate results
         if progress_callback:
-            progress_callback("Processing results", 0.9, "finalizing")
+            progress_callback("Processing results", 0.85, "processing")
 
         end_time = datetime.now(tz=UTC)
         duration_ms = (end_time - start_time).total_seconds() * 1000
@@ -269,6 +292,53 @@ class GarakEngine:
             "error": scan_results.get("error"),
         }
 
+        # Process results through the result processor
+        processed_report: Optional[ScanReport] = None
+        processed_report_path: Optional[Path] = None
+
+        try:
+            if progress_callback:
+                progress_callback("Analyzing results", 0.90, "analyzing")
+
+            processed_report = self.result_processor.process_scan_result(result)
+
+            # Store the processed report
+            if progress_callback:
+                progress_callback("Saving report", 0.95, "saving")
+
+            processed_report_path = self.storage_manager.save_report(
+                processed_report,
+                scan_id=result["scan_id"],
+            )
+
+            # Also copy raw garak report if available
+            raw_report_path = scan_results.get("report_path")
+            if raw_report_path:
+                self.storage_manager.save_raw_garak_report(
+                    Path(raw_report_path),
+                    scan_id=result["scan_id"],
+                )
+
+            self.logger.info(
+                "processed_report_saved",
+                scan_id=result["scan_id"],
+                report_path=str(processed_report_path),
+                security_score=processed_report.security_score.overall_score,
+                risk_level=processed_report.security_score.risk_level.value,
+            )
+
+        except (ResultProcessingError, StorageError) as e:
+            self.logger.warning(
+                "result_processing_warning",
+                scan_id=result["scan_id"],
+                error=str(e),
+            )
+            # Continue without processed report - raw result still available
+
+        # Add processed report data to result
+        result["processed_report"] = processed_report
+        result["processed_report_path"] = str(processed_report_path) if processed_report_path else None
+
         if progress_callback:
             progress_callback("Complete", 1.0, "done")
 
@@ -278,6 +348,7 @@ class GarakEngine:
             status=result["status"],
             duration_ms=result["duration_ms"],
             findings_count=len(result["findings"]),
+            has_processed_report=processed_report is not None,
         )
 
         return result
@@ -550,6 +621,45 @@ class GarakEngine:
             return GoogleProviderConfig.model_validate(provider_data)
         else:
             return ProviderConfig.model_validate(provider_data)
+
+    def _build_sci_config(self) -> SCIConfig:
+        """
+        Build SCIConfig from config_manager data.
+
+        Returns:
+            SCIConfig instance.
+        """
+        # Try to build from config_manager data
+        try:
+            config_data = {}
+
+            # Get output config
+            output_data = self.config_manager.get("output", {})
+            if isinstance(output_data, dict):
+                config_data["output"] = output_data
+
+            # Get logging config
+            logging_data = self.config_manager.get("logging", {})
+            if isinstance(logging_data, dict):
+                config_data["logging"] = logging_data
+
+            # Get compliance config
+            compliance_data = self.config_manager.get("compliance", {})
+            if isinstance(compliance_data, dict):
+                config_data["compliance"] = compliance_data
+
+            # Get garak config
+            config_data["garak"] = self.config.model_dump()
+
+            return SCIConfig.model_validate(config_data)
+
+        except Exception as e:
+            self.logger.warning(
+                "sci_config_build_fallback",
+                error=str(e),
+            )
+            # Return default config on error
+            return SCIConfig(garak=self.config)
 
     def _get_builtin_profile(self, name: str) -> Optional[dict[str, Any]]:
         """

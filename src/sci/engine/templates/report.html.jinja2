@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCI Security Scan Report - {{ report.scan_id }}</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            min-height: 100vh;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 35px 40px;
+            border-radius: 16px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(26, 26, 46, 0.3);
+        }
+        
+        header h1 {
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        header .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+        
+        header .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header .meta-label {
+            font-size: 0.8em;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        header .meta-value {
+            font-weight: 600;
+        }
+        
+        /* Dashboard Grid */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h3 {
+            font-size: 0.8em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .card .value {
+            font-size: 2.4em;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+        
+        .card .sub {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 8px;
+        }
+        
+        /* Score Gauge */
+        .score-card {
+            grid-column: span 1;
+        }
+        
+        .score-gauge {
+            width: 130px;
+            height: 130px;
+            margin: 0 auto 10px;
+            position: relative;
+        }
+        
+        .score-gauge svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        
+        .score-gauge circle {
+            fill: none;
+            stroke-width: 12;
+        }
+        
+        .score-gauge .bg {
+            stroke: #e9ecef;
+        }
+        
+        .score-gauge .fg {
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s ease-out;
+        }
+        
+        .score-gauge .label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .score-gauge .label .value {
+            font-size: 2em;
+            font-weight: 700;
+        }
+        
+        .score-gauge .label .sub {
+            font-size: 0.85em;
+            color: #888;
+        }
+        
+        /* Sections */
+        .section {
+            background: white;
+            border-radius: 14px;
+            padding: 28px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+        }
+        
+        .section h2 {
+            font-size: 1.25em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 14px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #555;
+        }
+        
+        tr:hover {
+            background: #fafbfc;
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .badge-critical { background: #dc3545; }
+        .badge-high { background: #fd7e14; }
+        .badge-medium { background: #ffc107; color: #333; }
+        .badge-low { background: #28a745; }
+        .badge-compliant { background: #28a745; }
+        .badge-non-compliant { background: #dc3545; }
+        .badge-partial { background: #ffc107; color: #333; }
+        .badge-not-assessed { background: #6c757d; }
+        
+        /* Category Scores */
+        .category-scores {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .category-score {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .cat-name {
+            width: 130px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .score-bar {
+            flex: 1;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .score-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.5s ease-out;
+        }
+        
+        .cat-value {
+            width: 45px;
+            text-align: right;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        
+        /* Recommendations */
+        .recommendations {
+            list-style: none;
+        }
+        
+        .recommendations li {
+            padding: 14px 18px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            font-size: 0.95em;
+        }
+        
+        .recommendations li.rec-critical {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .recommendations li.rec-high {
+            border-left-color: #fd7e14;
+            background: #fff8f0;
+        }
+        
+        /* Compliance Tags */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        .tag {
+            background: #e9ecef;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        /* Probe Tags */
+        .probes-executed {
+            margin-top: 15px;
+        }
+        
+        .probe-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            display: inline-block;
+            margin: 3px;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: #888;
+            font-size: 0.9em;
+        }
+        
+        footer .version {
+            margin-top: 5px;
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            header {
+                padding: 25px;
+            }
+            
+            header h1 {
+                font-size: 1.5em;
+            }
+            
+            header .meta {
+                gap: 15px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            th, td {
+                padding: 10px 8px;
+                font-size: 0.9em;
+            }
+        }
+        
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+            
+            .card, .section {
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }
+            
+            header {
+                background: #333;
+                box-shadow: none;
+            }
+        }
+        
+        /* Interactive features */
+        .collapsible {
+            cursor: pointer;
+        }
+        
+        .collapsible:after {
+            content: ' ▼';
+            font-size: 0.7em;
+            opacity: 0.5;
+        }
+        
+        .collapsible.collapsed:after {
+            content: ' ▶';
+        }
+        
+        .sortable th {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .sortable th:hover {
+            background: #eef0f2;
+        }
+        
+        /* Color utilities */
+        .text-critical { color: #dc3545; }
+        .text-high { color: #fd7e14; }
+        .text-medium { color: #ffc107; }
+        .text-low { color: #28a745; }
+        .text-minimal { color: #28a745; }
+        .text-limited { color: #17a2b8; }
+        .text-unacceptable { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🛡️ SCI Security Scan Report</h1>
+            <div class="meta">
+                <div class="meta-item">
+                    <span class="meta-label">Scan ID</span>
+                    <span class="meta-value">{{ report.scan_id }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Provider</span>
+                    <span class="meta-value">{{ report.provider }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model</span>
+                    <span class="meta-value">{{ report.model }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Profile</span>
+                    <span class="meta-value">{{ report.profile }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Duration</span>
+                    <span class="meta-value">{{ "%.0f"|format(report.duration_ms) }}ms</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Status</span>
+                    <span class="meta-value">{{ report.status|upper }}</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard -->
+        <div class="dashboard">
+            <!-- Security Score Gauge -->
+            <div class="card score-card">
+                <h3>Security Score</h3>
+                {% set score = report.security_score.overall_score %}
+                {% set score_color = '#28a745' if score >= 80 else '#ffc107' if score >= 60 else '#dc3545' %}
+                <div class="score-gauge">
+                    <svg viewBox="0 0 130 130">
+                        <circle class="bg" cx="65" cy="65" r="55"/>
+                        <circle class="fg" cx="65" cy="65" r="55" 
+                            stroke="{{ score_color }}"
+                            stroke-dasharray="345"
+                            stroke-dashoffset="{{ 345 - (score / 100 * 345) }}"/>
+                    </svg>
+                    <div class="label">
+                        <div class="value" style="color:{{ score_color }}">{{ "%.0f"|format(score) }}</div>
+                        <div class="sub">/ 100</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Level -->
+            <div class="card">
+                <h3>Risk Level</h3>
+                {% set risk = report.security_score.risk_level.value %}
+                {% set risk_color = '#28a745' if risk == 'minimal' else '#17a2b8' if risk == 'limited' else '#ffc107' if risk == 'high' else '#dc3545' %}
+                <div class="value" style="color:{{ risk_color }}">{{ risk|upper }}</div>
+                <div class="sub">EU AI Act Classification</div>
+            </div>
+
+            <!-- Total Findings -->
+            <div class="card">
+                <h3>Total Findings</h3>
+                <div class="value">{{ report.vulnerability_summary.total_findings }}</div>
+                <div class="sub">Across all probes</div>
+            </div>
+
+            <!-- Severity Counts -->
+            {% set vuln = report.security_score.vulnerabilities_by_severity %}
+            <div class="card">
+                <h3>Critical</h3>
+                <div class="value text-critical">{{ vuln.get('critical', 0) }}</div>
+                <div class="sub">Immediate action</div>
+            </div>
+
+            <div class="card">
+                <h3>High</h3>
+                <div class="value text-high">{{ vuln.get('high', 0) }}</div>
+                <div class="sub">High priority</div>
+            </div>
+
+            <div class="card">
+                <h3>Medium</h3>
+                <div class="value text-medium">{{ vuln.get('medium', 0) }}</div>
+                <div class="sub">Should address</div>
+            </div>
+
+            <div class="card">
+                <h3>Low</h3>
+                <div class="value text-low">{{ vuln.get('low', 0) }}</div>
+                <div class="sub">Monitor</div>
+            </div>
+
+            <!-- Compliance Status -->
+            <div class="card">
+                <h3>Compliance</h3>
+                {% set comp_status = report.compliance_assessment.overall_status.value %}
+                {% set comp_color = '#28a745' if comp_status == 'compliant' else '#dc3545' if comp_status == 'non-compliant' else '#ffc107' %}
+                <div class="value" style="color:{{ comp_color }}">{{ comp_status|upper|replace('-', ' ') }}</div>
+                <div class="sub">{{ report.compliance_assessment.articles_passed }}/{{ report.compliance_assessment.articles_assessed }} articles</div>
+            </div>
+        </div>
+
+        <!-- Category Scores -->
+        <div class="section">
+            <h2>📊 Category Scores</h2>
+            <div class="category-scores">
+                {% for cat, score in report.security_score.category_scores.items() %}
+                {% set cat_color = '#28a745' if score >= 80 else '#ffc107' if score >= 60 else '#dc3545' %}
+                <div class="category-score">
+                    <span class="cat-name">{{ cat|replace('_', ' ')|title }}</span>
+                    <div class="score-bar">
+                        <div class="score-fill" style="width:{{ score }}%;background:{{ cat_color }}"></div>
+                    </div>
+                    <span class="cat-value">{{ "%.0f"|format(score) }}</span>
+                </div>
+                {% else %}
+                <p>No category data available.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="section">
+            <h2>📋 Recommendations</h2>
+            <ul class="recommendations">
+                {% for rec in report.recommendations %}
+                <li class="{{ 'rec-critical' if rec.startswith('CRITICAL') else 'rec-high' if rec.startswith('HIGH') else '' }}">
+                    {{ rec }}
+                </li>
+                {% else %}
+                <li>No specific recommendations at this time. Continue monitoring security posture.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- EU AI Act Compliance -->
+        <div class="section">
+            <h2>🇪🇺 EU AI Act Compliance Assessment</h2>
+            <table class="sortable">
+                <thead>
+                    <tr>
+                        <th>Article</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Findings</th>
+                        <th>Critical</th>
+                        <th>Risk Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for article in report.compliance_assessment.article_details %}
+                    <tr>
+                        <td><strong>{{ article.article_id }}</strong></td>
+                        <td>{{ article.title }}</td>
+                        <td>
+                            <span class="badge badge-{{ article.status.value|replace(' ', '-') }}">
+                                {{ article.status.value|upper|replace('-', ' ') }}
+                            </span>
+                        </td>
+                        <td>{{ article.findings_count }}</td>
+                        <td>{{ article.critical_findings }}</td>
+                        <td>{{ "%.0f"|format(article.risk_score) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">No compliance assessment data available.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% if report.compliance_tags %}
+            <div class="tags">
+                {% for tag in report.compliance_tags %}
+                <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Vulnerability Findings -->
+        <div class="section">
+            <h2>🔍 Vulnerability Findings ({{ report.findings|length }})</h2>
+            <table class="sortable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Probe</th>
+                        <th>Severity</th>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Compliance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for finding in report.findings[:100] %}
+                    <tr>
+                        <td><code>{{ finding.id }}</code></td>
+                        <td>{{ finding.probe_name }}</td>
+                        <td>
+                            <span class="badge badge-{{ finding.severity.value }}">
+                                {{ finding.severity.value|upper }}
+                            </span>
+                        </td>
+                        <td>{{ finding.category.value|replace('_', ' ')|title }}</td>
+                        <td>{{ finding.description[:100] }}{% if finding.description|length > 100 %}...{% endif %}</td>
+                        <td>{{ finding.compliance_articles|join(', ') or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">No vulnerability findings recorded.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if report.findings|length > 100 %}
+            <p style="margin-top:15px;color:#888;">
+                Showing 100 of {{ report.findings|length }} findings. Export full report for complete data.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Probes Executed -->
+        {% if report.probes_executed %}
+        <div class="section">
+            <h2>🧪 Probes Executed ({{ report.probes_executed|length }})</h2>
+            <div class="probes-executed">
+                {% for probe in report.probes_executed[:50] %}
+                <span class="probe-tag">{{ probe }}</span>
+                {% endfor %}
+                {% if report.probes_executed|length > 50 %}
+                <span class="probe-tag">+{{ report.probes_executed|length - 50 }} more</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Metadata -->
+        <div class="section">
+            <h2>ℹ️ Report Metadata</h2>
+            <table>
+                <tbody>
+                    <tr>
+                        <td><strong>SCI Version</strong></td>
+                        <td>{{ report.metadata.sci_version }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Garak Version</strong></td>
+                        <td>{{ report.metadata.garak_version or 'Unknown' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Report Generated</strong></td>
+                        <td>{{ report.metadata.report_generated }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Scan Start</strong></td>
+                        <td>{{ report.start_time }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Scan End</strong></td>
+                        <td>{{ report.end_time }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Format Version</strong></td>
+                        <td>{{ report.metadata.format_version }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>Generated by <strong>SCI (Security Compliance Inspector)</strong></p>
+            <p class="version">v{{ report.metadata.sci_version }} | {{ generated_at }}</p>
+        </footer>
+    </div>
+
+    <script>
+        // Simple table sorting functionality
+        document.querySelectorAll('.sortable th').forEach(th => {
+            th.addEventListener('click', () => {
+                const table = th.closest('table');
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const idx = Array.from(th.parentElement.children).indexOf(th);
+                const asc = th.classList.toggle('asc');
+                
+                rows.sort((a, b) => {
+                    const aVal = a.children[idx]?.textContent.trim() || '';
+                    const bVal = b.children[idx]?.textContent.trim() || '';
+                    const aNum = parseFloat(aVal);
+                    const bNum = parseFloat(bVal);
+                    
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return asc ? aNum - bNum : bNum - aNum;
+                    }
+                    return asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                });
+                
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+    </script>
+</body>
+</html>

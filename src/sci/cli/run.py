@@ -262,14 +262,14 @@ def _generate_html_report(results: dict[str, Any]) -> str:
 
 def _display_results_summary(results: dict[str, Any], console: Console) -> None:
     """
-    Display a summary of scan results.
+    Display a summary of scan results including security score and compliance.
 
     Args:
-        results: Scan results dictionary.
+        results: Scan results dictionary (may include processed_report).
         console: Rich console for output.
     """
-    summary = results.get("summary", {})
     status = results.get("status", "unknown")
+    processed_report = results.get("processed_report")
 
     # Create summary table
     table = Table(title="Scan Results Summary", show_header=True, header_style="bold cyan")
@@ -296,35 +296,184 @@ def _display_results_summary(results: dict[str, Any], console: Console) -> None:
     console.print()
     console.print(table)
 
-    # Test results table
-    if summary:
-        results_table = Table(title="Test Results", show_header=True, header_style="bold cyan")
-        results_table.add_column("Metric", style="dim")
-        results_table.add_column("Count")
-        results_table.add_column("Rate")
+    # Security Score section (from processed report)
+    if processed_report:
+        security_score = processed_report.security_score
+        score_value = security_score.overall_score
+        risk_level = security_score.risk_level.value
 
-        total = summary.get("total", 0)
-        passed = summary.get("passed", 0)
-        failed = summary.get("failed", 0)
-        pass_rate = summary.get("pass_rate", 0)
+        # Determine score color
+        if score_value >= 80:
+            score_style = "green"
+        elif score_value >= 60:
+            score_style = "yellow"
+        else:
+            score_style = "red"
 
-        results_table.add_row("Total Tests", str(total), "")
-        results_table.add_row("Passed", f"[green]{passed}[/green]", "")
-        results_table.add_row("Failed", f"[red]{failed}[/red]", "")
+        # Risk level color
+        risk_colors = {
+            "minimal": "green",
+            "limited": "cyan",
+            "high": "yellow",
+            "unacceptable": "red",
+        }
+        risk_style = risk_colors.get(risk_level, "white")
 
-        # Pass rate with color
-        rate_style = "green" if pass_rate >= 80 else "yellow" if pass_rate >= 50 else "red"
-        results_table.add_row("Pass Rate", "", f"[{rate_style}]{pass_rate:.1f}%[/{rate_style}]")
+        # Security Score table
+        score_table = Table(title="Security Assessment", show_header=True, header_style="bold cyan")
+        score_table.add_column("Metric", style="dim")
+        score_table.add_column("Value")
+
+        score_table.add_row(
+            "Security Score",
+            f"[{score_style}][bold]{score_value:.0f}[/bold] / 100[/{score_style}]"
+        )
+        score_table.add_row(
+            "Risk Level",
+            f"[{risk_style}][bold]{risk_level.upper()}[/bold][/{risk_style}]"
+        )
+        score_table.add_row(
+            "Compliance Score",
+            f"{security_score.compliance_score:.0f} / 100"
+        )
 
         console.print()
-        console.print(results_table)
+        console.print(score_table)
+
+        # Vulnerabilities by Severity table
+        vuln = security_score.vulnerabilities_by_severity
+        total_findings = sum(vuln.values())
+
+        if total_findings > 0:
+            vuln_table = Table(title="Vulnerabilities by Severity", show_header=True, header_style="bold cyan")
+            vuln_table.add_column("Severity", style="dim")
+            vuln_table.add_column("Count", justify="right")
+            vuln_table.add_column("", justify="left")
+
+            critical = vuln.get("critical", 0)
+            high = vuln.get("high", 0)
+            medium = vuln.get("medium", 0)
+            low = vuln.get("low", 0)
+
+            if critical > 0:
+                vuln_table.add_row("Critical", f"[red bold]{critical}[/red bold]", "🔴 Immediate action required")
+            else:
+                vuln_table.add_row("Critical", "0", "[dim]None[/dim]")
+
+            if high > 0:
+                vuln_table.add_row("High", f"[#fd7e14 bold]{high}[/#fd7e14 bold]", "🟠 High priority")
+            else:
+                vuln_table.add_row("High", "0", "[dim]None[/dim]")
+
+            if medium > 0:
+                vuln_table.add_row("Medium", f"[yellow]{medium}[/yellow]", "🟡 Should address")
+            else:
+                vuln_table.add_row("Medium", "0", "[dim]None[/dim]")
+
+            if low > 0:
+                vuln_table.add_row("Low", f"[green]{low}[/green]", "🟢 Monitor")
+            else:
+                vuln_table.add_row("Low", "0", "[dim]None[/dim]")
+
+            vuln_table.add_row("", "", "")
+            vuln_table.add_row("[bold]Total[/bold]", f"[bold]{total_findings}[/bold]", "")
+
+            console.print()
+            console.print(vuln_table)
+
+        # Compliance Assessment
+        compliance = processed_report.compliance_assessment
+        if compliance.articles_assessed > 0:
+            comp_table = Table(title="EU AI Act Compliance", show_header=True, header_style="bold cyan")
+            comp_table.add_column("Status", style="dim")
+            comp_table.add_column("Value")
+
+            # Overall status with color
+            comp_status = compliance.overall_status.value
+            comp_colors = {
+                "compliant": "green",
+                "non-compliant": "red",
+                "partial": "yellow",
+                "not-assessed": "dim",
+            }
+            comp_style = comp_colors.get(comp_status, "white")
+
+            comp_table.add_row(
+                "Overall Status",
+                f"[{comp_style}][bold]{comp_status.upper().replace('-', ' ')}[/bold][/{comp_style}]"
+            )
+            comp_table.add_row(
+                "Articles Assessed",
+                str(compliance.articles_assessed)
+            )
+            comp_table.add_row(
+                "Articles Passed",
+                f"[green]{compliance.articles_passed}[/green]"
+            )
+            comp_table.add_row(
+                "Articles Failed",
+                f"[red]{compliance.articles_failed}[/red]" if compliance.articles_failed > 0 else "0"
+            )
+
+            console.print()
+            console.print(comp_table)
+
+            # High risk areas
+            if compliance.high_risk_areas:
+                console.print()
+                console.print("[bold red]High Risk Areas:[/bold red]")
+                for area in compliance.high_risk_areas:
+                    console.print(f"  • [red]{area}[/red]")
+
+        # Recommendations
+        if processed_report.recommendations:
+            console.print()
+            console.print("[bold]Recommendations:[/bold]")
+            for rec in processed_report.recommendations[:5]:  # Show top 5
+                if rec.startswith("CRITICAL"):
+                    console.print(f"  [red]• {rec}[/red]")
+                elif rec.startswith("HIGH"):
+                    console.print(f"  [#fd7e14]• {rec}[/#fd7e14]")
+                else:
+                    console.print(f"  • {rec}")
+
+    else:
+        # Fallback to raw summary if no processed report
+        summary = results.get("summary", {})
+        if summary:
+            results_table = Table(title="Test Results", show_header=True, header_style="bold cyan")
+            results_table.add_column("Metric", style="dim")
+            results_table.add_column("Count")
+            results_table.add_column("Rate")
+
+            total = summary.get("total", 0)
+            passed = summary.get("passed", 0)
+            failed = summary.get("failed", 0)
+            pass_rate = summary.get("pass_rate", 0)
+
+            results_table.add_row("Total Tests", str(total), "")
+            results_table.add_row("Passed", f"[green]{passed}[/green]", "")
+            results_table.add_row("Failed", f"[red]{failed}[/red]", "")
+
+            # Pass rate with color
+            rate_style = "green" if pass_rate >= 80 else "yellow" if pass_rate >= 50 else "red"
+            results_table.add_row("Pass Rate", "", f"[{rate_style}]{pass_rate:.1f}%[/{rate_style}]")
+
+            console.print()
+            console.print(results_table)
 
     # Compliance tags
     compliance_tags = results.get("compliance_tags", [])
     if compliance_tags:
         console.print()
-        console.print("[bold]EU AI Act Compliance Coverage:[/bold]")
+        console.print("[bold]EU AI Act Articles Covered:[/bold]")
         console.print(", ".join(f"[cyan]{tag}[/cyan]" for tag in compliance_tags))
+
+    # Output path
+    processed_path = results.get("processed_report_path")
+    if processed_path:
+        console.print()
+        console.print(f"[dim]Report saved to: {processed_path}[/dim]")
 
     # Error information if present
     error = results.get("error")
@@ -402,6 +551,13 @@ def run_callback(
             help="Show detailed findings and progress.",
         ),
     ] = False,
+    no_save: Annotated[
+        bool,
+        typer.Option(
+            "--no-save",
+            help="Skip saving results to file (dry run for testing).",
+        ),
+    ] = False,
 ) -> None:
     """
     Execute security tests against an LLM target.
@@ -463,6 +619,7 @@ def run_callback(
     table.add_row("Model", model or "[dim]not specified[/dim]")
     table.add_row("Output Directory", str(output) if output else "[dim]./results[/dim]")
     table.add_row("Output Format", output_format.value)
+    table.add_row("Save Results", "[dim]disabled[/dim]" if no_save else "[green]enabled[/green]")
     table.add_row("Log Level", log_level)
     table.add_row("Config File", str(config_file) if config_file else "[dim]default[/dim]")
 
@@ -610,27 +767,53 @@ def run_callback(
     # Display results summary
     _display_results_summary(results, console)
 
-    # Save results
-    try:
-        results_path = _save_results(
-            results=results,
-            output_dir=scan_output_dir,
-            output_format=output_format,
-            include_timestamp=include_timestamps,
-        )
+    # Save additional results (processed report is already saved by engine)
+    if not no_save:
+        try:
+            # Save CLI-formatted results (in addition to engine-saved report)
+            results_path = _save_results(
+                results=results,
+                output_dir=scan_output_dir,
+                output_format=output_format,
+                include_timestamp=include_timestamps,
+            )
 
+            # Get the processed report path
+            processed_path = results.get("processed_report_path")
+
+            console.print()
+            if processed_path:
+                console.print(
+                    Panel(
+                        f"[green]Scan completed successfully![/green]\n\n"
+                        f"Processed report: [bold]{processed_path}[/bold]\n"
+                        f"Raw results: [bold]{results_path}[/bold]",
+                        title="Success",
+                        border_style="green",
+                    )
+                )
+            else:
+                console.print(
+                    Panel(
+                        f"[green]Scan completed successfully![/green]\n\n"
+                        f"Results saved to: [bold]{results_path}[/bold]",
+                        title="Success",
+                        border_style="green",
+                    )
+                )
+
+        except OSError as e:
+            console.print(f"[yellow]Warning:[/yellow] Could not save results: {e}")
+    else:
         console.print()
         console.print(
             Panel(
                 f"[green]Scan completed successfully![/green]\n\n"
-                f"Results saved to: [bold]{results_path}[/bold]",
+                f"[yellow]Results not saved (--no-save flag was used)[/yellow]",
                 title="Success",
                 border_style="green",
             )
         )
-
-    except OSError as e:
-        console.print(f"[yellow]Warning:[/yellow] Could not save results: {e}")
 
     # Log completion
     logger.info(
@@ -733,15 +916,36 @@ def list_probes(
     table.add_column("SCI Probe Name", style="green")
     table.add_column("Garak Module", style="dim")
     table.add_column("Category")
-    table.add_column("Compliance Tags", style="cyan")
+    table.add_column("EU AI Act Articles", style="cyan")
+    table.add_column("Risk Level", style="yellow")
+
+    # Import EU_AI_ACT_MAPPING to get risk levels
+    from sci.garak.mappings import EU_AI_ACT_MAPPING as mapping
 
     for probe in probes:
         tags = ", ".join(probe.get("compliance_tags", []))
+        category = probe.get("category", "")
+
+        # Get risk level from mapping
+        risk_info = mapping.get(category, {})
+        risk_level = risk_info.get("risk_level")
+        if risk_level:
+            risk_str = risk_level.value.upper()
+            if risk_str == "HIGH":
+                risk_str = f"[red]{risk_str}[/red]"
+            elif risk_str == "LIMITED":
+                risk_str = f"[yellow]{risk_str}[/yellow]"
+            else:
+                risk_str = f"[green]{risk_str}[/green]"
+        else:
+            risk_str = "[dim]-[/dim]"
+
         table.add_row(
             probe["sci_name"],
             probe["garak_module"],
-            probe.get("category", ""),
+            category,
             tags or "[dim]none[/dim]",
+            risk_str,
         )
 
     console.print()
@@ -833,16 +1037,28 @@ def list_detectors(
     table.add_column("SCI Detector Name", style="green")
     table.add_column("Category")
     table.add_column("Level", style="cyan")
+    table.add_column("EU AI Act Articles", style="cyan")
     table.add_column("Garak Detectors", style="dim")
+
+    # Import ComplianceMapper to get articles
+    from sci.garak.mappings import ComplianceMapper
+
+    compliance_mapper = ComplianceMapper()
 
     for detector in detectors:
         garak_dets = ", ".join(
             d.split(".")[-1] for d in detector.get("garak_detectors", [])
         )
+
+        # Get compliance articles for this detector
+        articles = compliance_mapper.get_articles_for_detector(detector["sci_name"])
+        articles_str = ", ".join(articles) if articles else "[dim]none[/dim]"
+
         table.add_row(
             detector["sci_name"],
             detector.get("category", ""),
             detector.get("level", "basic"),
+            articles_str,
             garak_dets or "[dim]none[/dim]",
         )
 
