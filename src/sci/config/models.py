@@ -284,6 +284,29 @@ class GarakConfig(BaseModel):
         default_factory=dict,
         description="Mapping of SCI probe names to garak probe identifiers",
     )
+    # Timeout configuration
+    scan_timeout: Annotated[int, Field(ge=1, le=7200)] = Field(
+        default=600,
+        description="Overall scan timeout in seconds",
+    )
+    probe_timeout: Annotated[int, Field(ge=1, le=600)] = Field(
+        default=120,
+        description="Per-probe timeout in seconds",
+    )
+    connection_timeout: Annotated[int, Field(ge=1, le=300)] = Field(
+        default=30,
+        description="Connection validation timeout in seconds",
+    )
+    # Retry configuration
+    retry_delay: Annotated[float, Field(ge=0.1, le=60.0)] = Field(
+        default=1.0,
+        description="Initial retry delay in seconds",
+    )
+    # Error handling configuration
+    continue_on_error: bool = Field(
+        default=False,
+        description="Continue scan if individual probe fails",
+    )
 
 
 class SCIConfig(BaseModel):

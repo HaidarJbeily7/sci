@@ -52,6 +52,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "manipulation_output": "malwaregen",
             "manipulation_context": "malwaregen",
         },
+        # Timeout configuration
+        "scan_timeout": 600,  # Overall scan timeout in seconds
+        "probe_timeout": 120,  # Per-probe timeout in seconds
+        "connection_timeout": 30,  # Connection validation timeout in seconds
+        # Retry configuration
+        "retry_delay": 1.0,  # Initial retry delay in seconds
+        # Error handling configuration
+        "continue_on_error": False,  # Continue scan if probe fails
     },
     # Default test profiles
     "profiles": {
@@ -297,6 +305,17 @@ garak:
     # Manipulation probes
     manipulation_output: malwaregen
     manipulation_context: malwaregen
+
+  # Timeout configuration
+  scan_timeout: 600  # Overall scan timeout in seconds (1-7200)
+  probe_timeout: 120  # Per-probe timeout in seconds (1-600)
+  connection_timeout: 30  # Connection validation timeout in seconds (1-300)
+
+  # Retry configuration
+  retry_delay: 1.0  # Initial retry delay in seconds (0.1-60.0)
+
+  # Error handling
+  continue_on_error: false  # Continue scan if individual probe fails
 
 # -----------------------------------------------------------------------------
 # Test Profiles

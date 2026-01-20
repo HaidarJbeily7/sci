@@ -6,6 +6,7 @@ scan lifecycle including profile loading, probe/detector mapping,
 scan execution, result processing, and report generation.
 """
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -20,6 +21,18 @@ from sci.config.models import (
     ProviderConfig,
     SCIConfig,
     TestProfile,
+)
+from sci.engine.exceptions import (
+    GarakConfigurationError,
+    GarakConnectionError,
+    GarakExecutionError,
+    GarakInstallationError,
+    GarakTimeoutError,
+    GarakValidationError,
+    ScanCheckpoint,
+    get_probe_suggestions,
+    get_detector_suggestions,
+    with_timeout,
 )
 from sci.engine.results import (
     GarakResultProcessor,
@@ -134,17 +147,19 @@ class GarakEngine:
         profile_name: str,
         output_dir: Path,
         progress_callback: Optional[ProgressCallback] = None,
+        resume_checkpoint: Optional[Path] = None,
     ) -> dict[str, Any]:
         """
         Execute a security scan against an LLM.
 
         This method orchestrates the complete scan workflow:
         1. Load and validate the test profile
-        2. Map SCI probe names to garak identifiers
-        3. Load and validate provider configuration
-        4. Adapt provider config for authentication
-        5. Execute scan via GarakClientWrapper
-        6. Aggregate and return results with metadata
+        2. Validate probe/detector availability
+        3. Map SCI probe names to garak identifiers
+        4. Load and validate provider configuration
+        5. Adapt provider config for authentication
+        6. Execute scan via GarakClientWrapper
+        7. Aggregate and return results with metadata
 
         Args:
             provider_name: Name of the LLM provider (e.g., "openai").
@@ -153,11 +168,12 @@ class GarakEngine:
             output_dir: Directory for storing scan results.
             progress_callback: Optional callback for progress updates.
                 Signature: (probe_name: str, completion: float, status: str) -> None
+            resume_checkpoint: Optional path to a checkpoint file to resume from.
 
         Returns:
             Dictionary containing scan results with keys:
             - scan_id: Unique identifier for the scan
-            - status: Execution status (success, failure, error)
+            - status: Execution status (success, partial_success, failure, error)
             - start_time: ISO timestamp of scan start
             - end_time: ISO timestamp of scan end
             - duration_ms: Scan duration in milliseconds
@@ -169,12 +185,19 @@ class GarakEngine:
             - summary: Summary statistics
             - compliance_tags: EU AI Act articles covered
             - report_path: Path to detailed report file
+            - failed_probes: List of probes that failed (if continue_on_error)
+            - checkpoint_path: Path to checkpoint file (for recovery)
 
         Raises:
-            ValueError: If profile or provider configuration is invalid.
-            RuntimeError: If garak execution fails.
+            GarakValidationError: If profile or configuration is invalid.
+            GarakConfigurationError: If provider configuration is invalid.
+            GarakExecutionError: If garak execution fails.
+            GarakTimeoutError: If scan exceeds timeout.
+            GarakConnectionError: If there are connectivity issues.
         """
         start_time = datetime.now(tz=UTC)
+        checkpoint: Optional[ScanCheckpoint] = None
+        failed_probes: list[dict[str, Any]] = []
 
         self.logger.info(
             "scan_execution_started",
@@ -184,6 +207,16 @@ class GarakEngine:
             output_dir=str(output_dir),
         )
 
+        # Resume from checkpoint if provided
+        if resume_checkpoint and resume_checkpoint.exists():
+            checkpoint = self._load_checkpoint(resume_checkpoint)
+            self.logger.info(
+                "resuming_from_checkpoint",
+                scan_id=checkpoint.scan_id,
+                completed_probes=len(checkpoint.completed_probes),
+                pending_probes=len(checkpoint.pending_probes),
+            )
+
         # Notify progress callback
         if progress_callback:
             progress_callback("Loading configuration", 0.0, "initializing")
@@ -191,10 +224,28 @@ class GarakEngine:
         # Load test profile
         profile = self.get_profile(profile_name)
         if profile is None:
-            raise ValueError(
-                f"Profile '{profile_name}' not found in configuration. "
-                f"Available profiles: {self.list_available_profiles()}"
+            available = self.list_available_profiles()
+            raise GarakValidationError(
+                message=f"Profile '{profile_name}' not found in configuration",
+                validation_type="profile",
+                suggestions=available,
+                error_code="VAL_005",
+                troubleshooting_tips=[
+                    f"Available profiles: {', '.join(available)}",
+                    "Check the spelling of the profile name",
+                    "Define custom profiles in your configuration file",
+                ],
+                context={
+                    "requested_profile": profile_name,
+                    "available_profiles": available,
+                },
             )
+
+        # Validate probes are available
+        if progress_callback:
+            progress_callback("Validating probes", 0.05, "validating")
+
+        self.validate_probes_available(profile.probes)
 
         # Map SCI probe names to garak identifiers
         if progress_callback:
@@ -202,10 +253,25 @@ class GarakEngine:
 
         garak_probes = self.probe_mapper.map_probe_list(profile.probes)
         if not garak_probes:
-            raise ValueError(
-                f"No valid garak probes found for profile '{profile_name}'. "
-                f"Profile probes: {profile.probes}"
+            raise GarakValidationError(
+                message=f"No valid garak probes found for profile '{profile_name}'",
+                validation_type="probe_mapping",
+                error_code="VAL_006",
+                troubleshooting_tips=[
+                    "Check the probe names in the profile configuration",
+                    "Run 'sci run probes' to see available probes",
+                    "Verify probe_categories mapping in garak configuration",
+                ],
+                context={
+                    "profile_probes": profile.probes,
+                    "profile_name": profile_name,
+                },
             )
+
+        # Filter probes if resuming from checkpoint
+        if checkpoint:
+            garak_probes = [p for p in garak_probes if p not in checkpoint.completed_probes]
+            failed_probes = checkpoint.failed_probes
 
         self.logger.debug(
             "probes_mapped",
@@ -222,8 +288,15 @@ class GarakEngine:
         # Validate provider configuration
         validation_errors = validate_provider_config(provider_name, provider_config)
         if validation_errors:
-            raise ValueError(
-                f"Provider configuration validation failed: {'; '.join(validation_errors)}"
+            raise GarakConfigurationError(
+                message=f"Provider configuration validation failed for '{provider_name}'",
+                field_name="provider",
+                error_code="CONFIG_003",
+                troubleshooting_tips=validation_errors,
+                context={
+                    "provider": provider_name,
+                    "errors_count": len(validation_errors),
+                },
             )
 
         # Get adapter and prepare authentication
@@ -233,8 +306,16 @@ class GarakEngine:
         # Override model name if specified in CLI (takes precedence over config)
         effective_model = model_name or provider_config.model
         if not effective_model:
-            raise ValueError(
-                f"Model name is required. Specify via --model flag or in provider config."
+            raise GarakConfigurationError(
+                message="Model name is required",
+                field_name="model",
+                expected_format="Model identifier (e.g., 'gpt-4', 'claude-3-opus')",
+                error_code="CONFIG_004",
+                troubleshooting_tips=[
+                    "Specify the model via --model flag",
+                    "Add 'model' to your provider configuration",
+                    "Check the provider's documentation for model names",
+                ],
             )
 
         # Log scan initiation (mask credentials)
@@ -246,18 +327,51 @@ class GarakEngine:
             env_vars_count=len(env_vars),
         )
 
+        # Create checkpoint for this scan
+        import uuid
+        scan_id = checkpoint.scan_id if checkpoint else str(uuid.uuid4())[:8]
+        current_checkpoint = ScanCheckpoint(
+            scan_id=scan_id,
+            completed_probes=checkpoint.completed_probes if checkpoint else [],
+            failed_probes=failed_probes,
+            pending_probes=garak_probes.copy(),
+        )
+
         # Execute scan
         if progress_callback:
             progress_callback("Executing probes", 0.3, "scanning")
 
-        scan_results = self.client.run_scan(
-            generator_type=generator_type,
-            model_name=effective_model,
-            probes=garak_probes,
-            env_vars=env_vars,
-            output_dir=output_dir,
-            **additional_params,
-        )
+        # Apply overall scan timeout
+        scan_timeout = getattr(self.config, "scan_timeout", 600)
+        continue_on_error = getattr(self.config, "continue_on_error", False)
+
+        try:
+            scan_results = self._execute_scan_with_recovery(
+                generator_type=generator_type,
+                model_name=effective_model,
+                probes=garak_probes,
+                env_vars=env_vars,
+                output_dir=output_dir,
+                additional_params=additional_params,
+                checkpoint=current_checkpoint,
+                continue_on_error=continue_on_error,
+                scan_timeout=scan_timeout,
+            )
+        except (GarakExecutionError, GarakTimeoutError, GarakConnectionError) as e:
+            # Save checkpoint for recovery
+            checkpoint_path = self._save_checkpoint(current_checkpoint, output_dir)
+            self.logger.error(
+                "scan_failed_checkpoint_saved",
+                scan_id=scan_id,
+                checkpoint_path=str(checkpoint_path),
+                error=str(e),
+            )
+            # Add checkpoint info to the exception context
+            e.context["checkpoint_path"] = str(checkpoint_path)
+            raise
+
+        # Get failed probes from checkpoint
+        failed_probes = current_checkpoint.failed_probes
 
         # Get compliance tags for the probes executed
         compliance_tags = self.compliance_mapper.get_compliance_tags(
@@ -272,9 +386,19 @@ class GarakEngine:
         end_time = datetime.now(tz=UTC)
         duration_ms = (end_time - start_time).total_seconds() * 1000
 
+        # Determine overall status
+        if scan_results.get("status") == "error":
+            status = "error"
+        elif failed_probes and scan_results.get("findings"):
+            status = "partial_success"
+        elif failed_probes:
+            status = "failure"
+        else:
+            status = scan_results.get("status", "success")
+
         result = {
-            "scan_id": scan_results.get("scan_id", "unknown"),
-            "status": scan_results.get("status", "error"),
+            "scan_id": scan_results.get("scan_id", scan_id),
+            "status": status,
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
             "duration_ms": round(duration_ms, 2),
@@ -290,7 +414,12 @@ class GarakEngine:
             "compliance_tags": compliance_tags,
             "report_path": scan_results.get("report_path"),
             "error": scan_results.get("error"),
+            "failed_probes": failed_probes,
         }
+
+        # Save final checkpoint
+        checkpoint_path = self._save_checkpoint(current_checkpoint, output_dir)
+        result["checkpoint_path"] = str(checkpoint_path)
 
         # Process results through the result processor
         processed_report: Optional[ScanReport] = None
@@ -348,44 +477,297 @@ class GarakEngine:
             status=result["status"],
             duration_ms=result["duration_ms"],
             findings_count=len(result["findings"]),
+            failed_probes_count=len(failed_probes),
             has_processed_report=processed_report is not None,
         )
 
         return result
 
+    def _execute_scan_with_recovery(
+        self,
+        generator_type: str,
+        model_name: str,
+        probes: list[str],
+        env_vars: dict[str, str],
+        output_dir: Path,
+        additional_params: dict[str, Any],
+        checkpoint: ScanCheckpoint,
+        continue_on_error: bool,
+        scan_timeout: int,
+    ) -> dict[str, Any]:
+        """
+        Execute scan with error recovery and checkpoint support.
+
+        Args:
+            generator_type: Type of generator to use.
+            model_name: Name of the model to test.
+            probes: List of probes to execute.
+            env_vars: Environment variables for authentication.
+            output_dir: Directory for results.
+            additional_params: Additional parameters for the scan.
+            checkpoint: Checkpoint for tracking progress.
+            continue_on_error: Whether to continue if individual probes fail.
+            scan_timeout: Overall scan timeout in seconds.
+
+        Returns:
+            Scan results dictionary.
+        """
+        if not continue_on_error:
+            # Execute all probes together
+            return self.client.run_scan(
+                generator_type=generator_type,
+                model_name=model_name,
+                probes=probes,
+                env_vars=env_vars,
+                output_dir=output_dir,
+                **additional_params,
+            )
+
+        # Execute probes individually for error recovery
+        all_findings: list[dict[str, Any]] = []
+        all_summaries: dict[str, Any] = {}
+        last_report_path: Optional[str] = None
+        scan_id: Optional[str] = None
+
+        for probe in probes:
+            try:
+                result = self.client.run_scan(
+                    generator_type=generator_type,
+                    model_name=model_name,
+                    probes=[probe],
+                    env_vars=env_vars,
+                    output_dir=output_dir,
+                    **additional_params,
+                )
+
+                if result.get("status") == "success":
+                    checkpoint.add_completed_probe(probe, result)
+                    all_findings.extend(result.get("findings", []))
+                    if result.get("summary"):
+                        all_summaries[probe] = result["summary"]
+                    last_report_path = result.get("report_path")
+                    scan_id = result.get("scan_id", scan_id)
+                else:
+                    error_msg = result.get("error", {}).get("message", "Unknown error")
+                    checkpoint.add_failed_probe(probe, error_msg)
+
+            except (GarakExecutionError, GarakTimeoutError, GarakConnectionError) as e:
+                checkpoint.add_failed_probe(probe, str(e))
+                self.logger.warning(
+                    "probe_failed_continuing",
+                    probe=probe,
+                    error=str(e),
+                )
+
+            # Save checkpoint after each probe
+            self._save_checkpoint(checkpoint, output_dir)
+
+        # Aggregate results
+        total = len(all_findings)
+        passed = sum(1 for f in all_findings if f.get("passed", f.get("status") == "pass"))
+
+        return {
+            "scan_id": scan_id or checkpoint.scan_id,
+            "status": "success" if not checkpoint.failed_probes else "partial_success",
+            "findings": all_findings,
+            "summary": {
+                "total": total,
+                "passed": passed,
+                "failed": total - passed,
+                "pass_rate": round(passed / total * 100, 2) if total > 0 else 0.0,
+                "probes": all_summaries,
+            },
+            "report_path": last_report_path,
+        }
+
+    def validate_probes_available(self, probes: list[str]) -> None:
+        """
+        Validate that requested probes are available.
+
+        Args:
+            probes: List of SCI probe names to validate.
+
+        Raises:
+            GarakValidationError: If any probes are unavailable.
+        """
+        # Get available garak probes
+        available_probes = self.client.list_available_probes()
+        if not available_probes:
+            self.logger.warning(
+                "probe_listing_unavailable",
+                message="Could not retrieve available probes from garak",
+            )
+            return  # Skip validation if we can't get the list
+
+        # Check each probe
+        unavailable: list[str] = []
+        suggestions: dict[str, list[str]] = {}
+
+        for probe_name in probes:
+            # Map to garak probe names
+            try:
+                garak_probes = self.probe_mapper.map_probe_name(probe_name)
+                for garak_probe in garak_probes:
+                    if garak_probe not in available_probes:
+                        unavailable.append(garak_probe)
+                        probe_suggestions = get_probe_suggestions(
+                            garak_probe, available_probes
+                        )
+                        if probe_suggestions:
+                            suggestions[garak_probe] = probe_suggestions
+            except ValueError:
+                # Probe name not in mapping
+                unavailable.append(probe_name)
+                probe_suggestions = get_probe_suggestions(probe_name, available_probes)
+                if probe_suggestions:
+                    suggestions[probe_name] = probe_suggestions
+
+        if unavailable:
+            tips = []
+            for probe in unavailable:
+                if probe in suggestions:
+                    tips.append(f"'{probe}' - did you mean: {', '.join(suggestions[probe][:3])}?")
+                else:
+                    tips.append(f"'{probe}' is not available")
+
+            raise GarakValidationError(
+                message=f"Some probes are unavailable: {', '.join(unavailable)}",
+                validation_type="probe_availability",
+                suggestions=list(suggestions.values())[0] if suggestions else [],
+                error_code="VAL_007",
+                troubleshooting_tips=tips + [
+                    "Run 'sci run probes' to see all available probes",
+                    "Update garak to get the latest probes: pip install -U garak",
+                ],
+                context={
+                    "unavailable_probes": unavailable,
+                    "suggestions": suggestions,
+                },
+            )
+
+    def validate_detectors_available(self, detectors: list[str]) -> None:
+        """
+        Validate that requested detectors are available.
+
+        Args:
+            detectors: List of SCI detector names to validate.
+
+        Raises:
+            GarakValidationError: If any detectors are unavailable.
+        """
+        # Get available detector names from mapping
+        available_detectors = list(DETECTOR_TYPE_MAPPING.keys())
+
+        unavailable: list[str] = []
+        suggestions: dict[str, list[str]] = {}
+
+        for detector_name in detectors:
+            if detector_name not in DETECTOR_TYPE_MAPPING:
+                unavailable.append(detector_name)
+                detector_suggestions = get_detector_suggestions(
+                    detector_name, available_detectors
+                )
+                if detector_suggestions:
+                    suggestions[detector_name] = detector_suggestions
+
+        if unavailable:
+            tips = []
+            for detector in unavailable:
+                if detector in suggestions:
+                    tips.append(f"'{detector}' - did you mean: {', '.join(suggestions[detector][:3])}?")
+                else:
+                    tips.append(f"'{detector}' is not available")
+
+            raise GarakValidationError(
+                message=f"Some detectors are unavailable: {', '.join(unavailable)}",
+                validation_type="detector_availability",
+                suggestions=list(suggestions.values())[0] if suggestions else [],
+                error_code="VAL_008",
+                troubleshooting_tips=tips + [
+                    "Run 'sci run detectors' to see all available detectors",
+                ],
+                context={
+                    "unavailable_detectors": unavailable,
+                    "suggestions": suggestions,
+                },
+            )
+
+    def _save_checkpoint(self, checkpoint: ScanCheckpoint, output_dir: Path) -> Path:
+        """Save checkpoint to file."""
+        checkpoint_path = output_dir / f"checkpoint_{checkpoint.scan_id}.json"
+        with open(checkpoint_path, "w", encoding="utf-8") as f:
+            json.dump(checkpoint.to_dict(), f, indent=2)
+        return checkpoint_path
+
+    def _load_checkpoint(self, checkpoint_path: Path) -> ScanCheckpoint:
+        """Load checkpoint from file."""
+        with open(checkpoint_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return ScanCheckpoint.from_dict(data)
+
     def validate_configuration(
         self,
         provider_name: str,
         profile_name: str,
+        validate_connectivity: bool = False,
     ) -> dict[str, Any]:
         """
         Validate configuration before scan execution.
 
         Checks that the profile and provider are properly configured
-        with all required settings.
+        with all required settings. Optionally tests provider connectivity.
 
         Args:
             provider_name: Name of the provider to validate.
             profile_name: Name of the profile to validate.
+            validate_connectivity: If True, performs a quick connectivity test.
 
         Returns:
             Dictionary with validation results:
             - is_valid: True if configuration is valid
-            - errors: List of error messages
-            - warnings: List of warning messages
+            - errors: List of error messages (blocking issues)
+            - warnings: List of warning messages (non-blocking issues)
+            - suggestions: List of actionable recommendations
         """
         errors: list[str] = []
         warnings: list[str] = []
+        suggestions: list[str] = []
+
+        # Check garak installation first
+        try:
+            self.client.validate_installation()
+        except GarakInstallationError as e:
+            errors.append(str(e.message))
+            suggestions.extend(e.troubleshooting_tips)
 
         # Check if profile exists
         profile = self.get_profile(profile_name)
         if profile is None:
+            available = self.list_available_profiles()
             errors.append(
                 f"Profile '{profile_name}' not found. "
-                f"Available profiles: {self.list_available_profiles()}"
+                f"Available profiles: {', '.join(available)}"
             )
+            suggestions.append("Check the spelling of the profile name")
+            suggestions.append("Define custom profiles in your configuration file")
         elif not profile.probes:
             errors.append(f"Profile '{profile_name}' has no probes configured.")
+            suggestions.append("Add probes to the profile in your configuration")
+        else:
+            # Validate probes are available
+            try:
+                self.validate_probes_available(profile.probes)
+            except GarakValidationError as e:
+                warnings.append(f"Some probes may not be available: {e.message}")
+                suggestions.extend(e.troubleshooting_tips)
+
+            # Validate detectors are available
+            if profile.detectors:
+                try:
+                    self.validate_detectors_available(profile.detectors)
+                except GarakValidationError as e:
+                    warnings.append(f"Some detectors may not be available: {e.message}")
+                    suggestions.extend(e.troubleshooting_tips)
 
         # Check if provider exists
         try:
@@ -397,18 +779,36 @@ class GarakEngine:
 
             # Check for missing API key (warning if might be in environment)
             if not provider_config.api_key:
+                env_var_hints = {
+                    "openai": "OPENAI_API_KEY",
+                    "anthropic": "ANTHROPIC_API_KEY",
+                    "google": "GOOGLE_API_KEY",
+                    "azure": "AZURE_OPENAI_KEY",
+                    "huggingface": "HF_TOKEN",
+                }
+                env_var = env_var_hints.get(provider_name.lower(), "API_KEY")
                 warnings.append(
                     f"API key not found in config for {provider_name}. "
-                    f"Ensure it's set via environment variable."
+                    f"Ensure it's set via environment variable ({env_var})."
                 )
 
-        except ValueError as e:
-            errors.append(str(e))
+            # Optional connectivity test
+            if validate_connectivity and not errors:
+                try:
+                    adapter = get_adapter_for_provider(provider_name)
+                    _, env_vars, _ = adapter(provider_config)
+                    self.client.validate_connection(provider_name, env_vars)
+                except GarakConnectionError as e:
+                    errors.append(f"Provider connectivity test failed: {e.message}")
+                    suggestions.extend(e.troubleshooting_tips)
+                except GarakTimeoutError as e:
+                    warnings.append(f"Connectivity test timed out: {e.message}")
+                    suggestions.append("Check network connectivity to the provider")
 
-        # Validate garak is installed
-        try:
-            self.client.validate_installation()
-        except ImportError as e:
+        except GarakConfigurationError as e:
+            errors.append(str(e.message))
+            suggestions.extend(e.troubleshooting_tips)
+        except ValueError as e:
             errors.append(str(e))
 
         is_valid = len(errors) == 0
@@ -426,6 +826,7 @@ class GarakEngine:
             "is_valid": is_valid,
             "errors": errors,
             "warnings": warnings,
+            "suggestions": list(set(suggestions)),  # Remove duplicates
         }
 
     def get_profile(self, profile_name: Optional[str] = None) -> Optional[TestProfile]:

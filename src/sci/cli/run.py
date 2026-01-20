@@ -20,6 +20,15 @@ from rich.table import Table
 
 from sci.config.manager import get_config
 from sci.config.models import GarakConfig
+from sci.engine.exceptions import (
+    GarakConfigurationError,
+    GarakConnectionError,
+    GarakExecutionError,
+    GarakInstallationError,
+    GarakIntegrationError,
+    GarakTimeoutError,
+    GarakValidationError,
+)
 from sci.logging import get_logger
 from sci.logging.setup import log_error
 
@@ -33,6 +42,109 @@ app = typer.Typer(
 
 console = Console()
 logger = get_logger(__name__)
+
+
+def _display_error_panel(
+    error: GarakIntegrationError,
+    console: Console,
+    include_context: bool = True,
+) -> None:
+    """
+    Display a formatted error panel for garak exceptions.
+
+    Args:
+        error: The garak exception to display.
+        console: Rich console for output.
+        include_context: Whether to include context details.
+    """
+    # Determine panel style based on error type
+    if isinstance(error, GarakInstallationError):
+        title = "Installation Required"
+        border_style = "red"
+        icon = "📦"
+    elif isinstance(error, GarakConfigurationError):
+        title = "Configuration Error"
+        border_style = "red"
+        icon = "⚙️"
+    elif isinstance(error, GarakConnectionError):
+        title = "Connection Error"
+        border_style = "yellow"
+        icon = "🔌"
+    elif isinstance(error, GarakTimeoutError):
+        title = "Timeout Error"
+        border_style = "yellow"
+        icon = "⏱️"
+    elif isinstance(error, GarakValidationError):
+        title = "Validation Error"
+        border_style = "red"
+        icon = "❌"
+    elif isinstance(error, GarakExecutionError):
+        title = "Execution Error"
+        border_style = "red"
+        icon = "💥"
+    else:
+        title = "Error"
+        border_style = "red"
+        icon = "❗"
+
+    # Build error message
+    lines = [
+        f"[bold red]{icon} {error.error_code}[/bold red]: {error.message}",
+    ]
+
+    # Add troubleshooting tips
+    if error.troubleshooting_tips:
+        lines.append("")
+        lines.append("[bold cyan]Troubleshooting:[/bold cyan]")
+        for i, tip in enumerate(error.troubleshooting_tips[:5], 1):
+            lines.append(f"  {i}. {tip}")
+
+    # Add context if requested
+    if include_context and error.context:
+        # Filter out sensitive or verbose context
+        safe_context = {
+            k: v for k, v in error.context.items()
+            if k not in ("stderr_preview", "original_exception")
+            and not str(k).endswith("_key")
+        }
+        if safe_context:
+            lines.append("")
+            lines.append("[dim]Context:[/dim]")
+            for key, value in list(safe_context.items())[:5]:
+                if isinstance(value, list):
+                    value = ", ".join(str(v) for v in value[:3])
+                    if len(error.context[key]) > 3:
+                        value += "..."
+                lines.append(f"  [dim]{key}:[/dim] {value}")
+
+    # Add checkpoint info if available
+    if "checkpoint_path" in error.context:
+        lines.append("")
+        lines.append(
+            f"[yellow]Recovery checkpoint saved to:[/yellow] "
+            f"{error.context['checkpoint_path']}"
+        )
+        lines.append(
+            "[dim]Resume the scan with: sci run --resume <checkpoint_path>[/dim]"
+        )
+
+    panel_content = "\n".join(lines)
+    console.print()
+    console.print(Panel(panel_content, title=title, border_style=border_style))
+
+
+def _display_validation_suggestions(
+    suggestions: list[str],
+    console: Console,
+) -> None:
+    """Display validation suggestions in a helpful format."""
+    if not suggestions:
+        return
+
+    console.print()
+    console.print("[bold]Suggestions:[/bold]")
+    for suggestion in suggestions[:5]:
+        console.print(f"  • {suggestion}")
 
 
 class Provider(str, Enum):
@@ -666,19 +778,20 @@ def run_callback(
 
         engine = GarakEngine(garak_config, config_manager)
 
-    except ImportError as e:
-        console.print(
-            Panel(
-                f"[red]Garak not installed:[/red] {e}\n\n"
-                "Install garak with:\n"
-                "  pip install 'garak>=2.0.0'\n"
-                "  or\n"
-                "  uv add 'garak>=2.0.0'",
-                title="Installation Required",
-                border_style="red",
-            )
-        )
+    except GarakInstallationError as e:
+        _display_error_panel(e, console)
         raise typer.Exit(code=2)
+    except ImportError as e:
+        # Fallback for ImportError not wrapped in GarakInstallationError
+        error = GarakInstallationError(
+            message=str(e),
+            required_version=">=2.0.0",
+        )
+        _display_error_panel(error, console)
+        raise typer.Exit(code=2)
+    except GarakConfigurationError as e:
+        _display_error_panel(e, console)
+        raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]Error initializing engine:[/red] {e}")
         log_error(e, context={"phase": "engine_initialization"}, command="sci run")
@@ -703,14 +816,19 @@ def run_callback(
             )
         )
 
-        # Show suggestions for common issues
-        for error in validation["errors"]:
-            if "API key" in error.lower():
-                console.print(
-                    "\n[yellow]Tip:[/yellow] Set the API key via environment variable "
-                    f"(e.g., OPENAI_API_KEY) or add it to .secrets.yaml"
-                )
-                break
+        # Display suggestions if available
+        suggestions = validation.get("suggestions", [])
+        if suggestions:
+            _display_validation_suggestions(suggestions, console)
+        else:
+            # Show suggestions for common issues
+            for error in validation["errors"]:
+                if "API key" in error.lower():
+                    console.print(
+                        "\n[yellow]Tip:[/yellow] Set the API key via environment variable "
+                        f"(e.g., OPENAI_API_KEY) or add it to .secrets.yaml"
+                    )
+                    break
 
         raise typer.Exit(code=1)
 
@@ -718,6 +836,14 @@ def run_callback(
     if validation["warnings"]:
         for warning in validation["warnings"]:
             console.print(f"[yellow]Warning:[/yellow] {warning}")
+
+    # Show suggestions as tips
+    suggestions = validation.get("suggestions", [])
+    if suggestions and verbose:
+        console.print()
+        console.print("[dim]Tips:[/dim]")
+        for suggestion in suggestions[:3]:
+            console.print(f"  [dim]• {suggestion}[/dim]")
 
     # Create output directory
     try:
@@ -751,6 +877,45 @@ def run_callback(
                 progress_callback=progress_callback,
             )
 
+    except GarakValidationError as e:
+        _display_error_panel(e, console)
+        log_error(e, context={"phase": "scan_execution"}, command="sci run")
+        raise typer.Exit(code=1)
+    except GarakConfigurationError as e:
+        _display_error_panel(e, console)
+        log_error(e, context={"phase": "scan_execution"}, command="sci run")
+        raise typer.Exit(code=1)
+    except GarakConnectionError as e:
+        _display_error_panel(e, console)
+        log_error(e, context={"phase": "scan_execution"}, command="sci run")
+        # Suggest retry for connection errors
+        console.print()
+        console.print(
+            "[yellow]Tip:[/yellow] Connection errors may be transient. "
+            "Try running the command again."
+        )
+        raise typer.Exit(code=2)
+    except GarakTimeoutError as e:
+        _display_error_panel(e, console)
+        log_error(e, context={"phase": "scan_execution"}, command="sci run")
+        # Suggest timeout increase
+        console.print()
+        console.print(
+            "[yellow]Tip:[/yellow] You can increase the timeout in your configuration:\n"
+            "  garak:\n"
+            "    scan_timeout: 1200  # seconds\n"
+            "    probe_timeout: 240  # seconds"
+        )
+        raise typer.Exit(code=2)
+    except GarakExecutionError as e:
+        _display_error_panel(e, console)
+        log_error(e, context={"phase": "scan_execution"}, command="sci run")
+        raise typer.Exit(code=2)
+    except GarakIntegrationError as e:
+        # Catch-all for other garak errors
+        _display_error_panel(e, console)
+        log_error(e, context={"phase": "scan_execution"}, command="sci run")
+        raise typer.Exit(code=2)
     except ValueError as e:
         console.print(f"[red]Configuration error:[/red] {e}")
         log_error(e, context={"phase": "scan_execution"}, command="sci run")

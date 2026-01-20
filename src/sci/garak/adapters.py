@@ -13,6 +13,11 @@ from sci.config.models import (
     GoogleProviderConfig,
     ProviderConfig,
 )
+from sci.engine.exceptions import (
+    GarakConfigurationError,
+    validate_api_key_format,
+    validate_endpoint_url,
+)
 from sci.logging.setup import get_logger
 
 logger = get_logger(__name__)
@@ -326,7 +331,7 @@ def get_adapter_for_provider(provider_name: str) -> AdapterFunc:
         Adapter function for the provider.
 
     Raises:
-        ValueError: If the provider is not supported.
+        GarakConfigurationError: If the provider is not supported.
 
     Example:
         >>> adapter = get_adapter_for_provider("openai")
@@ -336,10 +341,21 @@ def get_adapter_for_provider(provider_name: str) -> AdapterFunc:
     provider_key = provider_name.lower().replace("-", "_")
 
     if provider_key not in _ADAPTER_REGISTRY:
-        supported = ", ".join(sorted(set(_ADAPTER_REGISTRY.keys())))
-        raise ValueError(
-            f"Unsupported provider: {provider_name}. "
-            f"Supported providers: {supported}"
+        supported = sorted(set(_ADAPTER_REGISTRY.keys()))
+        raise GarakConfigurationError(
+            message=f"Unsupported provider: {provider_name}",
+            field_name="provider",
+            expected_format=f"One of: {', '.join(supported)}",
+            error_code="CONFIG_002",
+            troubleshooting_tips=[
+                f"Use one of the supported providers: {', '.join(supported)}",
+                "Check the spelling of the provider name",
+                "See documentation for provider configuration examples",
+            ],
+            context={
+                "requested_provider": provider_name,
+                "supported_providers": supported,
+            },
         )
 
     logger.debug(
@@ -358,6 +374,9 @@ def validate_provider_config(
     """
     Validate that required fields are present for a provider.
 
+    Includes format validation for API keys and provider-specific
+    troubleshooting guidance.
+
     Args:
         provider_name: Name of the provider.
         config: Provider configuration to validate.
@@ -374,6 +393,16 @@ def validate_provider_config(
     errors: list[str] = []
     provider_key = provider_name.lower().replace("-", "_")
 
+    # Provider-specific documentation links
+    doc_links = {
+        "openai": "https://platform.openai.com/docs",
+        "anthropic": "https://docs.anthropic.com",
+        "google": "https://cloud.google.com/vertex-ai/docs",
+        "azure": "https://learn.microsoft.com/azure/ai-services/openai",
+        "aws": "https://docs.aws.amazon.com/bedrock",
+        "huggingface": "https://huggingface.co/docs",
+    }
+
     # Common validation: API key required for most providers
     api_key_required_providers = {
         "openai",
@@ -386,44 +415,102 @@ def validate_provider_config(
 
     if provider_key in api_key_required_providers:
         if not config.api_key:
-            errors.append(f"API key is required for {provider_name} provider")
+            doc_link = doc_links.get(provider_key, "")
+            doc_hint = f" See {doc_link}" if doc_link else ""
+            errors.append(
+                f"API key is required for {provider_name} provider.{doc_hint}"
+            )
+        else:
+            # Validate API key format
+            is_valid, format_error = validate_api_key_format(
+                config.api_key, provider_name
+            )
+            if not is_valid:
+                errors.append(f"Invalid API key format for {provider_name}: {format_error}")
 
     # Provider-specific validation
     if provider_key == "azure":
         if isinstance(config, AzureProviderConfig):
             if not config.api_key:
-                errors.append("API key is required for Azure provider")
+                errors.append(
+                    "API key is required for Azure provider. "
+                    "Set AZURE_OPENAI_KEY environment variable or add to config."
+                )
             if not config.endpoint:
-                errors.append("Endpoint URL is required for Azure provider")
+                errors.append(
+                    "Endpoint URL is required for Azure provider. "
+                    "Format: https://<resource-name>.openai.azure.com"
+                )
+            else:
+                # Validate endpoint URL format
+                is_valid, url_error = validate_endpoint_url(config.endpoint)
+                if not is_valid:
+                    errors.append(f"Invalid Azure endpoint URL: {url_error}")
+                elif ".openai.azure.com" not in config.endpoint:
+                    errors.append(
+                        "Azure endpoint should contain '.openai.azure.com'. "
+                        "Example: https://my-resource.openai.azure.com"
+                    )
             if not config.deployment_name:
-                errors.append("Deployment name is required for Azure provider")
+                errors.append(
+                    "Deployment name is required for Azure provider. "
+                    "This is the name of your deployed model in Azure."
+                )
         else:
-            errors.append("Azure provider requires AzureProviderConfig")
+            errors.append(
+                "Azure provider requires AzureProviderConfig. "
+                "Check your configuration structure."
+            )
 
     elif provider_key in ("aws", "bedrock"):
         if isinstance(config, AWSProviderConfig):
             if not config.access_key_id:
-                errors.append("AWS access key ID is required for AWS/Bedrock provider")
+                errors.append(
+                    "AWS access key ID is required for AWS/Bedrock provider. "
+                    "Set AWS_ACCESS_KEY_ID environment variable or add to config."
+                )
             if not config.secret_access_key:
                 errors.append(
-                    "AWS secret access key is required for AWS/Bedrock provider"
+                    "AWS secret access key is required for AWS/Bedrock provider. "
+                    "Set AWS_SECRET_ACCESS_KEY environment variable or add to config."
                 )
             if not config.region:
-                errors.append("AWS region is required for AWS/Bedrock provider")
+                errors.append(
+                    "AWS region is required for AWS/Bedrock provider. "
+                    "Example regions: us-east-1, us-west-2"
+                )
         else:
-            errors.append("AWS/Bedrock provider requires AWSProviderConfig")
+            errors.append(
+                "AWS/Bedrock provider requires AWSProviderConfig. "
+                "Check your configuration structure."
+            )
 
     elif provider_key == "google":
         if isinstance(config, GoogleProviderConfig):
             if not config.api_key:
-                errors.append("API key is required for Google provider")
+                errors.append(
+                    "API key is required for Google provider. "
+                    "Set GOOGLE_API_KEY environment variable or add to config."
+                )
             # project_id and location have defaults, so not strictly required
         else:
-            errors.append("Google provider requires GoogleProviderConfig")
+            errors.append(
+                "Google provider requires GoogleProviderConfig. "
+                "Check your configuration structure."
+            )
 
     # Validate API key is not empty string
     if config.api_key is not None and config.api_key.strip() == "":
-        errors.append("API key cannot be an empty string")
+        errors.append(
+            "API key cannot be an empty string. "
+            "Remove the field or provide a valid key."
+        )
+
+    # Validate base_url if provided
+    if config.base_url:
+        is_valid, url_error = validate_endpoint_url(config.base_url)
+        if not is_valid:
+            errors.append(f"Invalid base URL: {url_error}")
 
     logger.debug(
         "provider_config_validated",
