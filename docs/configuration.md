@@ -49,6 +49,18 @@ compliance:
   strict_mode: false             # Strict compliance checking
   generate_evidence: true        # Generate evidence documentation
 
+# Garak Framework Configuration
+garak:
+  enabled: true                  # Enable garak integration
+  timeout: 60                    # Request timeout in seconds (1-600)
+  max_retries: 3                 # Retry attempts (0-10)
+  parallelism: 10                # Parallel probe executions (1-100)
+  limit_samples: null            # Limit samples per probe (null for unlimited)
+  extended_detectors: true       # Use extended detectors
+  probe_categories:              # Map SCI probes to garak probes
+    prompt_injection_basic: promptinject
+    jailbreak_basic: dan
+
 # Test Profiles
 profiles:
   my_profile:
@@ -133,6 +145,26 @@ export SCI_OUTPUT__COMPRESSION="false"
 export SCI_COMPLIANCE__RISK_THRESHOLD=0.7
 export SCI_COMPLIANCE__STRICT_MODE="false"
 ```
+
+### Garak Settings
+
+```bash
+# Enable/disable garak integration
+export SCI_GARAK__ENABLED="true"
+
+# Base URL for hosted garak instances (optional)
+export SCI_GARAK__BASE_URL="https://your-garak-instance.example.com"
+
+# Timeout and retry settings
+export SCI_GARAK__TIMEOUT=60
+export SCI_GARAK__MAX_RETRIES=3
+
+# Parallelism and sample limits
+export SCI_GARAK__PARALLELISM=10
+export SCI_GARAK__LIMIT_SAMPLES=100
+```
+
+**Note**: Garak uses the standard provider API keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) configured in the providers section.
 
 ## Secrets Management
 
@@ -258,6 +290,61 @@ sci config validate settings.yaml --strict
 sci config show
 ```
 
+## Garak Framework Integration
+
+SCI integrates with the [garak](https://github.com/leondz/garak) framework to leverage its comprehensive LLM security testing capabilities.
+
+### Configuration
+
+```yaml
+garak:
+  # Enable garak framework integration
+  enabled: true
+
+  # Request timeout for garak operations in seconds
+  timeout: 60
+
+  # Maximum retry attempts for garak API calls
+  max_retries: 3
+
+  # Number of parallel probe executions
+  parallelism: 10
+
+  # Limit number of samples per probe (null for unlimited)
+  limit_samples: null
+
+  # Use extended detectors for more thorough testing
+  extended_detectors: true
+
+  # Mapping of SCI probe names to garak probe identifiers
+  probe_categories:
+    prompt_injection_basic: promptinject
+    prompt_injection_advanced: promptinject
+    jailbreak_basic: dan
+    jailbreak_roleplay: dan
+    extraction_system_prompt: leakreplay
+```
+
+### Field Reference
+
+| Field | Type | Range | Default | Description |
+|-------|------|-------|---------|-------------|
+| `enabled` | bool | - | `true` | Enable garak framework integration |
+| `base_url` | string | - | `null` | Base URL for hosted garak API endpoint |
+| `timeout` | int | 1-600 | `60` | Request timeout in seconds |
+| `max_retries` | int | 0-10 | `3` | Maximum retry attempts |
+| `parallelism` | int | 1-100 | `10` | Number of parallel probe executions |
+| `limit_samples` | int | - | `null` | Limit samples per probe (null for unlimited) |
+| `extended_detectors` | bool | - | `true` | Use extended detectors for thorough testing |
+| `probe_categories` | dict | - | `{}` | Mapping of SCI probes to garak probes |
+
+### Notes
+
+- **Python Version**: Garak requires Python 3.10+ (already satisfied by SCI project requirements)
+- **API Keys**: Garak uses the API keys configured in the `providers` section (e.g., `OPENAI_API_KEY`)
+- **Probe Categories**: The `probe_categories` mapping translates SCI probe names to garak probe module identifiers
+- **Extended Detectors**: Enable `extended_detectors` for more thorough but slower testing
+
 ## Best Practices
 
 1. **Use environment variables for secrets** - Never commit API keys to version control
@@ -265,3 +352,4 @@ sci config show
 3. **Validate before running** - Always validate configuration changes
 4. **Use profiles** - Define reusable test configurations
 5. **Set appropriate timeouts** - Adjust based on your LLM provider latency
+6. **Configure garak parallelism** - Adjust based on your API rate limits and system resources

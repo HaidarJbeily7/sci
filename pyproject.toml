@@ -47,6 +47,7 @@ dependencies = [
     "python-json-logger>=2.0.0",
     "pyyaml>=6.0",
     "rich>=13.0.0",
+    "garak>=2.0.0",
 ]
 
 [project.optional-dependencies]

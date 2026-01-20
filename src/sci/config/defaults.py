@@ -31,6 +31,28 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "strict_mode": False,
         "generate_evidence": True,
     },
+    # Garak framework defaults
+    "garak": {
+        "enabled": True,
+        "timeout": 60,
+        "max_retries": 3,
+        "parallelism": 10,
+        "limit_samples": None,
+        "extended_detectors": True,
+        "probe_categories": {
+            "prompt_injection_basic": "promptinject",
+            "prompt_injection_advanced": "promptinject",
+            "prompt_injection_multilingual": "promptinject",
+            "jailbreak_basic": "dan",
+            "jailbreak_roleplay": "dan",
+            "jailbreak_encoding": "encoding",
+            "extraction_system_prompt": "leakreplay",
+            "extraction_training_data": "leakreplay",
+            "extraction_model_info": "leakreplay",
+            "manipulation_output": "malwaregen",
+            "manipulation_context": "malwaregen",
+        },
+    },
     # Default test profiles
     "profiles": {
         "minimal": {
@@ -225,6 +247,56 @@ compliance:
 
   # Generate evidence documentation
   generate_evidence: true
+
+# -----------------------------------------------------------------------------
+# Garak Framework Configuration
+# -----------------------------------------------------------------------------
+# Garak is a security testing framework for LLMs that provides probes and
+# detectors for various attack vectors. SCI integrates with garak to leverage
+# its testing capabilities.
+garak:
+  # Enable garak framework integration
+  enabled: true
+
+  # Base URL for garak API endpoint (if using hosted garak)
+  # Leave empty/null for local garak execution
+  # base_url: https://your-garak-instance.example.com
+
+  # Request timeout for garak operations in seconds (1-600)
+  timeout: 60
+
+  # Maximum retry attempts for garak API calls (0-10)
+  max_retries: 3
+
+  # Number of parallel probe executions (1-100)
+  parallelism: 10
+
+  # Limit number of samples per probe (null for unlimited)
+  # Useful for faster testing during development
+  limit_samples: null
+
+  # Use extended detectors for more thorough testing
+  # Extended detectors are slower but more comprehensive
+  extended_detectors: true
+
+  # Mapping of SCI probe names to garak probe identifiers
+  # This allows SCI to translate its probe names to garak's probe modules
+  probe_categories:
+    # Prompt injection probes
+    prompt_injection_basic: promptinject
+    prompt_injection_advanced: promptinject
+    prompt_injection_multilingual: promptinject
+    # Jailbreak probes
+    jailbreak_basic: dan
+    jailbreak_roleplay: dan
+    jailbreak_encoding: encoding
+    # Extraction probes
+    extraction_system_prompt: leakreplay
+    extraction_training_data: leakreplay
+    extraction_model_info: leakreplay
+    # Manipulation probes
+    manipulation_output: malwaregen
+    manipulation_context: malwaregen
 
 # -----------------------------------------------------------------------------
 # Test Profiles

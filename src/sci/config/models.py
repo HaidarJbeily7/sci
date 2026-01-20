@@ -247,6 +247,45 @@ class ComplianceConfig(BaseModel):
     )
 
 
+class GarakConfig(BaseModel):
+    """Configuration for garak framework integration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable garak framework integration",
+    )
+    base_url: Optional[str] = Field(
+        default=None,
+        description="Base URL for garak API endpoint (if using hosted garak)",
+    )
+    timeout: Annotated[int, Field(ge=1, le=600)] = Field(
+        default=60,
+        description="Request timeout for garak operations in seconds",
+    )
+    max_retries: Annotated[int, Field(ge=0, le=10)] = Field(
+        default=3,
+        description="Maximum retry attempts for garak API calls",
+    )
+    parallelism: Annotated[int, Field(ge=1, le=100)] = Field(
+        default=10,
+        description="Number of parallel probe executions",
+    )
+    limit_samples: Optional[int] = Field(
+        default=None,
+        description="Limit number of samples per probe (None for unlimited)",
+    )
+    extended_detectors: bool = Field(
+        default=True,
+        description="Use extended detectors for more thorough testing",
+    )
+    probe_categories: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of SCI probe names to garak probe identifiers",
+    )
+
+
 class SCIConfig(BaseModel):
     """Root configuration model for SCI."""
 
@@ -271,4 +310,8 @@ class SCIConfig(BaseModel):
     compliance: ComplianceConfig = Field(
         default_factory=ComplianceConfig,
         description="Compliance configuration",
+    )
+    garak: GarakConfig = Field(
+        default_factory=GarakConfig,
+        description="Garak framework configuration",
     )
