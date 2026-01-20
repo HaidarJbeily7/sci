@@ -19,6 +19,72 @@ SCI (Security-Centered Intelligence) is a production-ready framework for systema
 - **🔧 Multi-Provider Support**: Test across OpenAI, Anthropic, Google, Azure, AWS Bedrock, and Hugging Face
 - **📝 Structured Logging**: JSON logging for CI/CD integration with full execution traceability
 - **⚙️ Flexible Configuration**: YAML/JSON configuration with environment variable overrides
+- **🛡️ Garak Integration**: Powered by the [garak](https://github.com/leondz/garak) LLM security testing framework
+
+## 🛡️ Garak Framework Integration
+
+SCI integrates with the **garak** framework to provide comprehensive LLM security testing capabilities. Garak is an open-source LLM vulnerability scanner that provides extensive probe libraries for testing prompt injection, jailbreaking, data extraction, and other security vulnerabilities.
+
+### Key Integration Features
+
+- **Semantic Probe Mapping**: SCI's user-friendly probe names automatically map to garak's technical identifiers
+- **Provider Adapters**: Seamless authentication configuration for all major LLM providers
+- **Result Enrichment**: Garak findings are enriched with severity levels, compliance mapping, and remediation guidance
+- **EU AI Act Mapping**: All findings are automatically associated with relevant EU AI Act articles
+
+### Quick Start with Garak
+
+```bash
+# Install garak dependency
+pip install 'garak>=2.0.0'
+
+# Run a security scan
+sci run --provider openai --model gpt-4 --profile standard
+
+# Preview what will be tested (dry run)
+sci run --provider openai --model gpt-4 --profile comprehensive --dry-run
+
+# List available security probes
+sci run probes
+
+# List available detectors
+sci run detectors
+```
+
+### Example Scan Output
+
+```bash
+$ sci run --provider openai --model gpt-4 --profile standard
+
+🔍 SCI Security Scan
+────────────────────────────────────────
+Provider: openai
+Model: gpt-4
+Profile: standard
+
+▶ Executing probes...
+  ✓ prompt_injection_basic (3/3 passed)
+  ✗ jailbreak_basic (2/5 passed)
+  ✓ extraction_system_prompt (5/5 passed)
+
+📊 Results Summary
+────────────────────────────────────────
+Security Score: 72/100
+Risk Level: LIMITED
+Findings: 3 vulnerabilities detected
+  - Critical: 0
+  - High: 1
+  - Medium: 2
+  - Low: 0
+
+📋 EU AI Act Compliance
+  Article 9: PARTIAL
+  Article 15: COMPLIANT
+
+Report saved: ./results/scan_abc123_20240115.html
+```
+
+See [Garak Integration Guide](docs/garak-integration.md) for detailed documentation.
 
 ## 🚀 Quick Start
 
@@ -118,11 +184,23 @@ sci/
 │   │   ├── manager.py    # Configuration loading/validation
 │   │   ├── models.py     # Pydantic models
 │   │   └── defaults.py   # Default values
+│   ├── engine/           # Core scanning engine
+│   │   ├── garak_engine.py    # Garak integration orchestration
+│   │   ├── results.py         # Result processing pipeline
+│   │   └── exceptions.py      # Custom exception hierarchy
+│   ├── garak/            # Garak framework integration
+│   │   ├── client.py     # Garak CLI wrapper
+│   │   ├── adapters.py   # Provider configuration adapters
+│   │   └── mappings.py   # Probe/detector/compliance mappings
 │   ├── logging/          # Structured logging
 │   │   └── setup.py      # Logging configuration
 │   └── version.py        # Version management
 ├── tests/                # Test suite
+│   ├── unit/             # Unit tests
+│   ├── integration/      # Integration tests
+│   └── fixtures/         # Test fixtures and sample data
 ├── docs/                 # Documentation
+│   └── examples/         # Example configurations
 └── pyproject.toml        # Project configuration
 ```
 
@@ -284,8 +362,21 @@ SCI is designed with a layered architecture for extensibility:
 ├─────────────────────────────────────────────────────────────┤
 │                   Configuration Layer (Dynaconf)             │
 ├─────────────────────────────────────────────────────────────┤
-│  Compliance │  Security  │ Orchestration │    Adaptive      │
-│    Layer    │Enhancement │     Layer     │  Intelligence    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                    GarakEngine                       │    │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │    │
+│  │  │  Probe   │  │ Detector │  │    Compliance    │  │    │
+│  │  │  Mapper  │  │  Mapper  │  │      Mapper      │  │    │
+│  │  └──────────┘  └──────────┘  └──────────────────┘  │    │
+│  │  ┌──────────────────────────────────────────────┐  │    │
+│  │  │           GarakClientWrapper                  │  │    │
+│  │  └──────────────────────────────────────────────┘  │    │
+│  └─────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              Result Processing Pipeline              │    │
+│  │  SecurityScore │ ComplianceAssessment │ Serializers │    │
+│  └─────────────────────────────────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────┤
 │                    Reporting Layer                           │
 └─────────────────────────────────────────────────────────────┘
@@ -314,6 +405,17 @@ Contributions are welcome! Please read our contributing guidelines before submit
 
 - [Configuration Reference](docs/configuration.md)
 - [CLI Reference](docs/cli-reference.md)
+- [Garak Integration Guide](docs/garak-integration.md)
+- [Garak Troubleshooting](docs/troubleshooting-garak.md)
+
+### Example Configurations
+
+- [Minimal Configuration](docs/examples/garak-minimal.yaml)
+- [Standard Configuration](docs/examples/garak-standard.yaml)
+- [Comprehensive Configuration](docs/examples/garak-comprehensive.yaml)
+- [Multi-Provider Testing](docs/examples/garak-multi-provider.yaml)
+- [Security-Focused Profile](docs/examples/profile-security-focused.yaml)
+- [Compliance-Focused Profile](docs/examples/profile-compliance-focused.yaml)
 
 ---
 

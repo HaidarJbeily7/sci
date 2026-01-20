@@ -1,0 +1,175 @@
+# EU AI Act Compliance-Focused Test Profile
+# This profile is designed specifically for EU AI Act compliance assessment.
+# Use this when preparing for regulatory audits or compliance certification.
+
+garak:
+  enabled: true
+  timeout: 120
+  max_retries: 5
+  parallelism: 5
+  extended_detectors: true
+  scan_timeout: 3600  # 1 hour for thorough assessment
+  continue_on_error: true
+
+# Structured logging for audit trails
+logging:
+  level: INFO
+  format: json
+  structured: true
+
+# Output configuration with evidence generation
+output:
+  directory: ./compliance_results
+  format: html  # HTML for readable reports
+  compression: false
+  include_timestamps: true
+
+# Compliance-focused test profiles
+profiles:
+  # Article 9 - Risk Management
+  article_9_risk_management:
+    name: article_9_risk_management
+    description: Tests for Article 9 - Risk Management System compliance
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - jailbreak_basic
+      - manipulation_output
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - bias_detection
+    compliance_tags:
+      - article-9
+    max_parallel: 5
+    timeout: 300
+
+  # Article 10 - Data Governance
+  article_10_data_governance:
+    name: article_10_data_governance
+    description: Tests for Article 10 - Data and Data Governance compliance
+    probes:
+      - extraction_system_prompt
+      - extraction_training_data
+      - extraction_model_info
+    detectors:
+      - leakage_basic
+      - leakage_pii
+      - bias_detection
+      - bias_demographic
+    compliance_tags:
+      - article-10
+    max_parallel: 5
+    timeout: 300
+
+  # Article 13 - Transparency
+  article_13_transparency:
+    name: article_13_transparency
+    description: Tests for Article 13 - Transparency and Information Provision
+    probes:
+      - compliance_transparency
+      - extraction_system_prompt
+    detectors:
+      - leakage_basic
+      - hallucination_factual
+    compliance_tags:
+      - article-13
+      - article-52
+    max_parallel: 5
+    timeout: 300
+
+  # Article 14 - Human Oversight
+  article_14_human_oversight:
+    name: article_14_human_oversight
+    description: Tests for Article 14 - Human Oversight requirements
+    probes:
+      - compliance_human_oversight
+      - manipulation_output
+    detectors:
+      - compliance_violation
+    compliance_tags:
+      - article-14
+    max_parallel: 5
+    timeout: 300
+
+  # Article 15 - Robustness
+  article_15_robustness:
+    name: article_15_robustness
+    description: Tests for Article 15 - Accuracy, Robustness and Cybersecurity
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+    compliance_tags:
+      - article-15
+    max_parallel: 5
+    timeout: 300
+
+  # Full Compliance Assessment
+  full_compliance:
+    name: full_compliance
+    description: Complete EU AI Act compliance assessment
+    probes:
+      # Article 9 - Risk Management
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - jailbreak_basic
+      - manipulation_output
+      # Article 10 - Data Governance
+      - extraction_system_prompt
+      - extraction_training_data
+      # Article 13 - Transparency
+      - compliance_transparency
+      # Article 14 - Human Oversight
+      - compliance_human_oversight
+      # Article 15 - Robustness
+      - jailbreak_roleplay
+      - jailbreak_encoding
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - leakage_basic
+      - leakage_pii
+      - bias_detection
+      - hallucination_factual
+      - compliance_violation
+    compliance_tags:
+      - article-9
+      - article-10
+      - article-13
+      - article-14
+      - article-15
+      - annex-iv
+    max_parallel: 3
+    timeout: 900
+
+# Provider configuration
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: gpt-4
+    timeout: 90
+    max_retries: 5
+
+# Comprehensive compliance settings
+compliance:
+  articles:
+    - article-9
+    - article-10
+    - article-13
+    - article-14
+    - article-15
+    - article-52
+  annexes:
+    - annex-iv
+  # Lower threshold for compliance (more strict)
+  risk_threshold: 0.5
+  # Enable strict compliance mode
+  strict_mode: true
+  # Generate detailed evidence for audits
+  generate_evidence: true

@@ -292,7 +292,17 @@ sci config show
 
 ## Garak Framework Integration
 
-SCI integrates with the [garak](https://github.com/leondz/garak) framework to leverage its comprehensive LLM security testing capabilities.
+SCI integrates with the [garak](https://github.com/leondz/garak) framework to leverage its comprehensive LLM security testing capabilities. See the [Garak Integration Guide](garak-integration.md) for detailed documentation.
+
+### Installation
+
+```bash
+# Install garak dependency
+pip install 'garak>=2.0.0'
+
+# Or with UV
+uv add 'garak>=2.0.0'
+```
 
 ### Configuration
 
@@ -316,13 +326,27 @@ garak:
   # Use extended detectors for more thorough testing
   extended_detectors: true
 
+  # Overall scan timeout in seconds (default: 10 minutes)
+  scan_timeout: 600
+
+  # Continue scanning if individual probes fail
+  continue_on_error: false
+
+  # Connection validation timeout
+  connection_timeout: 30
+
   # Mapping of SCI probe names to garak probe identifiers
   probe_categories:
     prompt_injection_basic: promptinject
     prompt_injection_advanced: promptinject
     jailbreak_basic: dan
     jailbreak_roleplay: dan
+    jailbreak_encoding: encoding
     extraction_system_prompt: leakreplay
+    extraction_training_data: leakreplay
+    manipulation_output: malwaregen
+    compliance_transparency: lmrc
+    compliance_human_oversight: lmrc
 ```
 
 ### Field Reference
@@ -331,12 +355,50 @@ garak:
 |-------|------|-------|---------|-------------|
 | `enabled` | bool | - | `true` | Enable garak framework integration |
 | `base_url` | string | - | `null` | Base URL for hosted garak API endpoint |
-| `timeout` | int | 1-600 | `60` | Request timeout in seconds |
-| `max_retries` | int | 0-10 | `3` | Maximum retry attempts |
+| `timeout` | int | 1-600 | `60` | Per-request timeout in seconds |
+| `max_retries` | int | 0-10 | `3` | Maximum retry attempts for transient errors |
 | `parallelism` | int | 1-100 | `10` | Number of parallel probe executions |
 | `limit_samples` | int | - | `null` | Limit samples per probe (null for unlimited) |
 | `extended_detectors` | bool | - | `true` | Use extended detectors for thorough testing |
-| `probe_categories` | dict | - | `{}` | Mapping of SCI probes to garak probes |
+| `scan_timeout` | int | 60-7200 | `600` | Overall scan timeout in seconds |
+| `continue_on_error` | bool | - | `false` | Continue if individual probes fail |
+| `connection_timeout` | int | 5-120 | `30` | Connection validation timeout |
+| `probe_categories` | dict | - | see below | Mapping of SCI probes to garak probes |
+
+### Built-in Probe Mappings
+
+| SCI Probe Name | Garak Module | Description |
+|----------------|--------------|-------------|
+| `prompt_injection_basic` | `promptinject` | Basic prompt injection tests |
+| `prompt_injection_advanced` | `promptinject` | Advanced prompt injection tests |
+| `jailbreak_basic` | `dan` | DAN-style jailbreak attempts |
+| `jailbreak_roleplay` | `dan` | Roleplay-based jailbreaks |
+| `jailbreak_encoding` | `encoding` | Encoding-based jailbreaks (Base64, Hex, ROT13) |
+| `extraction_system_prompt` | `leakreplay` | System prompt extraction |
+| `extraction_training_data` | `leakreplay` | Training data leakage |
+| `manipulation_output` | `malwaregen` | Output manipulation tests |
+| `compliance_transparency` | `lmrc` | Transparency compliance |
+| `compliance_human_oversight` | `lmrc` | Human oversight compliance |
+
+### Troubleshooting Tips
+
+**Common Issues:**
+
+1. **Garak not found**: Install with `pip install 'garak>=2.0.0'`
+2. **Timeout errors**: Increase `scan_timeout` or reduce `parallelism`
+3. **Rate limiting**: Reduce `parallelism` (try 3-5 for strict rate limits)
+4. **Authentication errors**: Verify API keys in providers section
+
+**Performance Tuning:**
+
+| API Provider | Recommended Parallelism | Notes |
+|--------------|------------------------|-------|
+| OpenAI | 10-20 | Good rate limits |
+| Anthropic | 3-5 | Stricter rate limits |
+| Azure | 5-10 | Depends on deployment |
+| AWS Bedrock | 5-10 | Region dependent |
+
+See [Garak Troubleshooting Guide](troubleshooting-garak.md) for detailed solutions.
 
 ### Notes
 
@@ -344,6 +406,7 @@ garak:
 - **API Keys**: Garak uses the API keys configured in the `providers` section (e.g., `OPENAI_API_KEY`)
 - **Probe Categories**: The `probe_categories` mapping translates SCI probe names to garak probe module identifiers
 - **Extended Detectors**: Enable `extended_detectors` for more thorough but slower testing
+- **Checkpoints**: When `continue_on_error` is enabled, checkpoints are saved to allow resuming failed scans
 
 ## Best Practices
 

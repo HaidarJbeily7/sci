@@ -1,0 +1,136 @@
+# Security-Focused Test Profile
+# This profile focuses on security vulnerabilities rather than compliance.
+# Use this when your primary concern is identifying exploitable weaknesses.
+
+garak:
+  enabled: true
+  timeout: 90
+  max_retries: 5
+  parallelism: 8
+  extended_detectors: true
+  scan_timeout: 1200
+  continue_on_error: true
+
+# Logging with detailed output
+logging:
+  level: DEBUG
+  format: json
+  structured: true
+
+# Output configuration
+output:
+  directory: ./security_scan_results
+  format: json
+  compression: false
+  include_timestamps: true
+
+# Security-focused test profiles
+profiles:
+  # High-priority security tests
+  security_critical:
+    name: security_critical
+    description: Critical security vulnerabilities only
+    probes:
+      # Direct injection attempts
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      # Jailbreak attempts
+      - jailbreak_basic
+      - jailbreak_encoding
+    detectors:
+      - toxicity_basic
+      - leakage_basic
+    compliance_tags:
+      - article-15
+    max_parallel: 10
+    timeout: 180
+
+  # Comprehensive security tests
+  security_full:
+    name: security_full
+    description: Full security assessment covering all attack vectors
+    probes:
+      # Prompt Injection
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - prompt_injection_multilingual
+      # Jailbreak Attacks
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+      # Data Extraction
+      - extraction_system_prompt
+      - extraction_training_data
+      # Output Manipulation
+      - manipulation_output
+      - manipulation_context
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - leakage_basic
+      - leakage_pii
+      - leakage_credentials
+    compliance_tags:
+      - article-9
+      - article-15
+    max_parallel: 5
+    timeout: 600
+
+  # Injection-focused tests
+  injection_focused:
+    name: injection_focused
+    description: Focused testing of injection vulnerabilities
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - prompt_injection_multilingual
+    detectors:
+      - toxicity_basic
+      - leakage_basic
+    compliance_tags:
+      - article-15
+    max_parallel: 10
+    timeout: 300
+
+  # Jailbreak-focused tests
+  jailbreak_focused:
+    name: jailbreak_focused
+    description: Focused testing of jailbreak vulnerabilities
+    probes:
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+    compliance_tags:
+      - article-9
+      - article-15
+    max_parallel: 10
+    timeout: 300
+
+  # Data leakage tests
+  leakage_focused:
+    name: leakage_focused
+    description: Focused testing of data leakage risks
+    probes:
+      - extraction_system_prompt
+      - extraction_training_data
+      - extraction_model_info
+    detectors:
+      - leakage_basic
+      - leakage_pii
+      - leakage_credentials
+    compliance_tags:
+      - article-10
+      - article-13
+    max_parallel: 5
+    timeout: 300
+
+# Provider configuration
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: gpt-4
+    timeout: 60
+    max_retries: 5

@@ -1,0 +1,37 @@
+# Minimal Garak Configuration
+# This is the simplest configuration for quick security testing.
+# Use this for initial testing or CI/CD pipelines where speed is important.
+
+garak:
+  # Enable garak integration
+  enabled: true
+
+  # Basic timeout settings
+  timeout: 60
+
+  # Low parallelism for quick execution
+  parallelism: 3
+
+# Minimal test profile
+profiles:
+  minimal:
+    name: minimal
+    description: Quick security smoke test
+    probes:
+      - prompt_injection_basic
+    detectors:
+      - toxicity_basic
+    max_parallel: 3
+    timeout: 60
+
+# Single provider configuration
+providers:
+  openai:
+    # API key from environment variable
+    api_key: ${OPENAI_API_KEY}
+    model: gpt-4
+
+# Basic output settings
+output:
+  directory: ./results
+  format: json

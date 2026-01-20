@@ -1,0 +1,70 @@
+# Standard Garak Configuration
+# A balanced configuration suitable for most security testing scenarios.
+# Provides good coverage without excessive runtime.
+
+garak:
+  # Enable garak integration
+  enabled: true
+
+  # Request timeout for individual API calls (seconds)
+  timeout: 60
+
+  # Retry failed requests up to 3 times
+  max_retries: 3
+
+  # Run 10 probes in parallel
+  parallelism: 10
+
+  # Use extended detectors for more thorough testing
+  extended_detectors: true
+
+  # Overall scan timeout (10 minutes)
+  scan_timeout: 600
+
+# Logging configuration
+logging:
+  level: INFO
+  format: console
+
+# Output settings
+output:
+  directory: ./results
+  format: json
+  compression: false
+  include_timestamps: true
+
+# Standard test profile
+profiles:
+  standard:
+    name: standard
+    description: Standard security scan covering common vulnerabilities
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - jailbreak_basic
+      - extraction_system_prompt
+    detectors:
+      - toxicity_basic
+      - leakage_basic
+    compliance_tags:
+      - article-9
+      - article-15
+    max_parallel: 10
+    timeout: 300
+
+# Provider configuration
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.openai.com/v1
+    model: gpt-4
+    timeout: 30
+    max_retries: 3
+
+# Compliance settings
+compliance:
+  articles:
+    - article-9
+    - article-15
+  risk_threshold: 0.7
+  generate_evidence: true

@@ -1,0 +1,96 @@
+# Multi-Provider Garak Configuration
+# Configuration for testing the same model across multiple LLM providers.
+# Useful for comparing security posture across different providers.
+
+garak:
+  enabled: true
+  timeout: 90
+  max_retries: 3
+  parallelism: 5
+  extended_detectors: true
+  scan_timeout: 1800  # 30 minutes per provider
+
+# Logging
+logging:
+  level: INFO
+  format: json
+
+# Output with provider-specific directories
+output:
+  directory: ./multi_provider_results
+  format: json
+  compression: false
+  include_timestamps: true
+
+# Test profile for multi-provider comparison
+profiles:
+  comparison:
+    name: comparison
+    description: Standardized test profile for provider comparison
+    probes:
+      - prompt_injection_basic
+      - jailbreak_basic
+      - extraction_system_prompt
+    detectors:
+      - toxicity_basic
+      - leakage_basic
+    compliance_tags:
+      - article-9
+      - article-15
+    max_parallel: 5
+    timeout: 300
+
+# Multiple provider configurations
+providers:
+  # OpenAI Configuration
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.openai.com/v1
+    model: gpt-4
+    timeout: 60
+    max_retries: 3
+
+  # Anthropic Configuration
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    model: claude-3-opus-20240229
+    timeout: 60
+    max_retries: 3
+
+  # Google AI Configuration
+  google:
+    api_key: ${GOOGLE_API_KEY}
+    project_id: ${GOOGLE_PROJECT_ID}
+    location: us-central1
+    model: gemini-pro
+    timeout: 60
+
+  # Azure OpenAI Configuration
+  azure:
+    api_key: ${AZURE_OPENAI_KEY}
+    endpoint: ${AZURE_OPENAI_ENDPOINT}
+    deployment_name: gpt-4-deployment
+    api_version: 2024-02-15-preview
+    timeout: 60
+
+  # AWS Bedrock Configuration
+  aws:
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    region: us-east-1
+    model: anthropic.claude-v2
+    timeout: 60
+
+  # Hugging Face Configuration
+  huggingface:
+    api_key: ${HF_TOKEN}
+    model: meta-llama/Llama-2-7b-chat-hf
+    timeout: 90  # Longer timeout for inference API
+
+# Compliance settings
+compliance:
+  articles:
+    - article-9
+    - article-15
+  risk_threshold: 0.7
+  generate_evidence: true

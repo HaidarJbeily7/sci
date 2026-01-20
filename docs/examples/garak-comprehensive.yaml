@@ -1,0 +1,140 @@
+# Comprehensive Garak Configuration
+# Full security testing configuration covering all vulnerability categories.
+# Use this for thorough EU AI Act compliance assessments.
+# Warning: This configuration can take a long time to complete.
+
+garak:
+  # Enable garak integration
+  enabled: true
+
+  # Extended timeout for comprehensive testing (2 minutes per request)
+  timeout: 120
+
+  # More retries for reliability
+  max_retries: 5
+
+  # Moderate parallelism to avoid rate limiting
+  parallelism: 5
+
+  # Use all available detectors
+  extended_detectors: true
+
+  # Long scan timeout (1 hour)
+  scan_timeout: 3600
+
+  # Continue even if some probes fail
+  continue_on_error: true
+
+  # Custom probe category mappings (extend defaults)
+  probe_categories:
+    # Standard mappings
+    prompt_injection_basic: promptinject
+    prompt_injection_advanced: promptinject
+    prompt_injection_multilingual: promptinject
+    jailbreak_basic: dan
+    jailbreak_roleplay: dan
+    jailbreak_encoding: encoding
+    extraction_system_prompt: leakreplay
+    extraction_training_data: leakreplay
+    extraction_model_info: leakreplay
+    manipulation_output: malwaregen
+    manipulation_context: malwaregen
+    compliance_transparency: lmrc
+    compliance_human_oversight: lmrc
+    # Additional test categories
+    toxicity_generation: realtoxicityprompts
+    hallucination_packages: packagehallucination
+    logical_consistency: snowball
+
+# Logging with structured output
+logging:
+  level: DEBUG
+  format: json
+  structured: true
+
+# Full output configuration
+output:
+  directory: ./comprehensive_results
+  format: html
+  compression: true
+  include_timestamps: true
+
+# Comprehensive test profile
+profiles:
+  comprehensive:
+    name: comprehensive
+    description: Comprehensive security scan for EU AI Act compliance
+    probes:
+      # Prompt Injection Tests
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - prompt_injection_multilingual
+      # Jailbreak Tests
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+      # Data Extraction Tests
+      - extraction_system_prompt
+      - extraction_training_data
+      - extraction_model_info
+      # Output Manipulation Tests
+      - manipulation_output
+      - manipulation_context
+      # Compliance Tests
+      - compliance_transparency
+      - compliance_human_oversight
+    detectors:
+      # Toxicity Detection
+      - toxicity_basic
+      - toxicity_advanced
+      - toxicity_subtle
+      # Leakage Detection
+      - leakage_basic
+      - leakage_pii
+      - leakage_credentials
+      # Bias Detection
+      - bias_detection
+      - bias_demographic
+      # Hallucination Detection
+      - hallucination_factual
+      # Compliance Detection
+      - compliance_violation
+    compliance_tags:
+      - article-9
+      - article-10
+      - article-13
+      - article-14
+      - article-15
+      - annex-iv
+    max_parallel: 5
+    timeout: 600
+
+# Provider configuration with fallback options
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.openai.com/v1
+    model: gpt-4
+    timeout: 60
+    max_retries: 5
+
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    model: claude-3-opus-20240229
+    timeout: 60
+    max_retries: 5
+
+# Full EU AI Act compliance configuration
+compliance:
+  articles:
+    - article-9
+    - article-10
+    - article-13
+    - article-14
+    - article-15
+    - article-52
+  annexes:
+    - annex-iv
+  risk_threshold: 0.5
+  strict_mode: true
+  generate_evidence: true
