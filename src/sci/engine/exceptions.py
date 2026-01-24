@@ -347,7 +347,7 @@ class GarakInstallationError(GarakIntegrationError):
     def __init__(
         self,
         message: str,
-        required_version: str = ">=2.0.0",
+        required_version: str = ">=0.13.3",
         installed_version: Optional[str] = None,
         error_code: str = "INSTALL_001",
         troubleshooting_tips: Optional[list[str]] = None,
@@ -961,7 +961,7 @@ def _get_execution_troubleshooting_tips(stderr: Optional[str]) -> list[str]:
     if not tips:
         tips = [
             "Check the error message for specific details",
-            "Verify garak is properly installed (pip install 'garak>=2.0.0')",
+            "Verify garak is properly installed (pip install 'garak>=0.13.3')",
             "Ensure all probe names are valid",
             "Check the garak documentation for probe-specific requirements",
         ]

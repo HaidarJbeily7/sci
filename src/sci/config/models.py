@@ -285,15 +285,15 @@ class GarakConfig(BaseModel):
         description="Mapping of SCI probe names to garak probe identifiers",
     )
     # Timeout configuration
-    scan_timeout: Annotated[int, Field(ge=1, le=7200)] = Field(
+    scan_timeout: Annotated[int, Field(ge=1, le=72000)] = Field(
         default=600,
         description="Overall scan timeout in seconds",
     )
-    probe_timeout: Annotated[int, Field(ge=1, le=600)] = Field(
+    probe_timeout: Annotated[int, Field(ge=1, le=6000)] = Field(
         default=120,
         description="Per-probe timeout in seconds",
     )
-    connection_timeout: Annotated[int, Field(ge=1, le=300)] = Field(
+    connection_timeout: Annotated[int, Field(ge=1, le=3000)] = Field(
         default=30,
         description="Connection validation timeout in seconds",
     )

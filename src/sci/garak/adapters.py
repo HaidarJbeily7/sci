@@ -39,7 +39,7 @@ def adapt_openai_config(
         >>> config = ProviderConfig(api_key="sk-...", model="gpt-4")
         >>> gen_type, env_vars, params = adapt_openai_config(config)
         >>> gen_type
-        'openai'
+        'openai.OpenAIGenerator'
         >>> env_vars
         {'OPENAI_API_KEY': 'sk-...'}
     """
@@ -64,7 +64,7 @@ def adapt_openai_config(
         model=config.model,
     )
 
-    return "openai", env_vars, additional_params
+    return "openai.OpenAIGenerator", env_vars, additional_params
 
 
 def adapt_anthropic_config(
@@ -83,7 +83,7 @@ def adapt_anthropic_config(
         >>> config = ProviderConfig(api_key="sk-ant-...", model="claude-3-opus")
         >>> gen_type, env_vars, params = adapt_anthropic_config(config)
         >>> gen_type
-        'anthropic'
+        'litellm.LiteLLMGenerator'
     """
     env_vars: dict[str, str] = {}
     additional_params: dict[str, Any] = {}
@@ -92,7 +92,11 @@ def adapt_anthropic_config(
         env_vars["ANTHROPIC_API_KEY"] = config.api_key
 
     if config.model:
-        additional_params["model_name"] = config.model
+        # LiteLLM uses anthropic/ prefix for Anthropic models
+        model_name = config.model
+        if not model_name.startswith("anthropic/"):
+            model_name = f"anthropic/{model_name}"
+        additional_params["model_name"] = model_name
 
     logger.debug(
         "adapted_anthropic_config",
@@ -100,7 +104,8 @@ def adapt_anthropic_config(
         model=config.model,
     )
 
-    return "anthropic", env_vars, additional_params
+    # garak uses litellm for Anthropic models
+    return "litellm.LiteLLMGenerator", env_vars, additional_params
 
 
 def adapt_google_config(
@@ -130,6 +135,8 @@ def adapt_google_config(
 
     if config.api_key:
         env_vars["GOOGLE_API_KEY"] = config.api_key
+        # LiteLLM also uses GEMINI_API_KEY
+        env_vars["GEMINI_API_KEY"] = config.api_key
 
     if config.project_id:
         additional_params["project_id"] = config.project_id
@@ -140,7 +147,11 @@ def adapt_google_config(
         env_vars["GOOGLE_CLOUD_LOCATION"] = config.location
 
     if config.model:
-        additional_params["model_name"] = config.model
+        # LiteLLM uses gemini/ prefix for Google models
+        model_name = config.model
+        if not model_name.startswith("gemini/"):
+            model_name = f"gemini/{model_name}"
+        additional_params["model_name"] = model_name
 
     logger.debug(
         "adapted_google_config",
@@ -150,7 +161,8 @@ def adapt_google_config(
         model=config.model,
     )
 
-    return "google", env_vars, additional_params
+    # garak uses litellm for Google/Gemini models
+    return "litellm.LiteLLMGenerator", env_vars, additional_params
 
 
 def adapt_azure_config(
@@ -202,7 +214,7 @@ def adapt_azure_config(
         deployment_name=config.deployment_name,
     )
 
-    return "azure", env_vars, additional_params
+    return "azure.AzureOpenAIGenerator", env_vars, additional_params
 
 
 def adapt_aws_config(
@@ -254,7 +266,7 @@ def adapt_aws_config(
         model=config.model,
     )
 
-    return "bedrock", env_vars, additional_params
+    return "bedrock.BedrockGenerator", env_vars, additional_params
 
 
 def adapt_huggingface_config(
@@ -300,7 +312,7 @@ def adapt_huggingface_config(
         model=config.model,
     )
 
-    return "huggingface", env_vars, additional_params
+    return "huggingface.InferenceAPI", env_vars, additional_params
 
 
 # Type alias for adapter functions

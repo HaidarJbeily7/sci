@@ -36,7 +36,7 @@ SCI integrates with the **garak** framework to provide comprehensive LLM securit
 
 ```bash
 # Install garak dependency
-pip install 'garak>=2.0.0'
+pip install 'garak>=0.13.3'
 
 # Run a security scan
 sci run --provider openai --model gpt-4 --profile standard

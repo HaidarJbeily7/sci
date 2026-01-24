@@ -61,7 +61,7 @@ The garak integration consists of several components:
 
 ```bash
 # Add garak as a dependency
-uv add 'garak>=2.0.0'
+uv add 'garak>=0.13.3'
 
 # Or sync with existing dependencies
 uv sync
@@ -70,7 +70,7 @@ uv sync
 #### Using pip
 
 ```bash
-pip install 'garak>=2.0.0'
+pip install 'garak>=0.13.3'
 ```
 
 ### Verifying Installation

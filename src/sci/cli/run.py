@@ -785,7 +785,7 @@ def run_callback(
         # Fallback for ImportError not wrapped in GarakInstallationError
         error = GarakInstallationError(
             message=str(e),
-            required_version=">=2.0.0",
+            required_version=">=0.13.3",
         )
         _display_error_panel(error, console)
         raise typer.Exit(code=2)

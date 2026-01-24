@@ -81,7 +81,7 @@ class GarakClientWrapper:
         Validate that garak is properly installed.
 
         Checks if the garak package is installed and verifies the version
-        is compatible (>= 2.0.0).
+        is compatible (>= 0.13.3).
 
         Returns:
             True if garak is properly installed.
@@ -101,15 +101,21 @@ class GarakClientWrapper:
                 version=version,
             )
 
-            # Parse version and check >= 2.0.0
+            # Parse version and check >= 0.13.3
             version_parts = version.split(".")
-            major_version = int(version_parts[0]) if version_parts else 0
+            major = int(version_parts[0]) if len(version_parts) > 0 else 0
+            minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+            patch = int(version_parts[2].split("-")[0]) if len(version_parts) > 2 else 0
 
-            if major_version < 2:
+            # Check if version is < 0.13.3
+            version_tuple = (major, minor, patch)
+            min_version = (0, 13, 3)
+
+            if version_tuple < min_version:
                 self.logger.warning(
                     "garak_version_warning",
                     version=version,
-                    required=">=2.0.0",
+                    required=">=0.13.3",
                     message="Garak version may not be fully compatible",
                 )
 
@@ -122,7 +128,7 @@ class GarakClientWrapper:
             )
             raise GarakInstallationError(
                 message="Garak is not installed or could not be imported",
-                required_version=">=2.0.0",
+                required_version=">=0.13.3",
                 installed_version=None,
                 error_code="INSTALL_001",
             ) from e
@@ -404,17 +410,22 @@ class GarakClientWrapper:
         **kwargs: Any,
     ) -> list[str]:
         """Build command-line arguments for garak CLI."""
+        # Use a simple prefix name, garak will handle the full path
+        scan_prefix = f"sci_scan_{output_dir.name}"
+
+        # Use --target_type and --target_name (garak 0.13.x syntax)
+        # --model_type and --model_name are deprecated
         args = [
-            "--model_type",
+            "--target_type",
             generator_type,
-            "--model_name",
+            "--target_name",
             model_name,
             "--probes",
             ",".join(probes),
-            "--parallel",
+            "--parallel_attempts",
             str(self.config.parallelism),
             "--report_prefix",
-            str(output_dir / "report"),
+            scan_prefix,
         ]
 
         # Add extended detectors flag if enabled
@@ -425,9 +436,12 @@ class GarakClientWrapper:
         if self.config.limit_samples is not None:
             args.extend(["--generations", str(self.config.limit_samples)])
 
+        # Skip kwargs that are not valid garak CLI args
+        skip_keys = {"output_dir", "api_base", "model_name"}
+
         # Add any additional kwargs as CLI args
         for key, value in kwargs.items():
-            if key not in ("output_dir",):  # Skip internal kwargs
+            if key not in skip_keys:
                 arg_name = f"--{key}"
                 if isinstance(value, bool):
                     if value:
@@ -444,42 +458,77 @@ class GarakClientWrapper:
         stderr: io.StringIO,
     ) -> int:
         """
-        Execute garak CLI with the given arguments.
+        Execute garak CLI as a subprocess.
 
         Returns the exit code (0 for success).
         """
-        from garak import cli as garak_cli
-
-        # Redirect stdout/stderr
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
+        import subprocess
 
         try:
-            sys.stdout = stdout
-            sys.stderr = stderr
+            # Run garak as a subprocess to avoid multiprocessing/pickling issues
+            cmd = [sys.executable, "-m", "garak"] + args
 
-            # Call garak's main function
-            # garak.cli.main() accepts a list of arguments
-            with contextlib.suppress(SystemExit):
-                garak_cli.main(args)
+            self.logger.debug(
+                "garak_subprocess_starting",
+                cmd=cmd[:6],  # Log first few args
+            )
 
-            return 0
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.config.scan_timeout or 600,
+                env=os.environ.copy(),
+            )
+
+            # Write output to the StringIO objects
+            stdout.write(result.stdout)
+            stderr.write(result.stderr)
+
+            if result.returncode != 0:
+                self.logger.warning(
+                    "garak_exit_nonzero",
+                    exit_code=result.returncode,
+                    stderr_preview=result.stderr[:500] if result.stderr else None,
+                )
+
+            return result.returncode
+
+        except subprocess.TimeoutExpired as e:
+            stderr.write(f"Garak execution timed out after {self.config.scan_timeout}s\n")
+            self.logger.error(
+                "garak_execution_timeout",
+                timeout=self.config.scan_timeout,
+            )
+            return 124  # Standard timeout exit code
 
         except Exception as e:
-            stderr.write(str(e))
+            stderr.write(f"Garak execution error: {str(e)}\n")
+            self.logger.error(
+                "garak_execution_exception",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return 1
 
-        finally:
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-
     def _find_report_file(self, output_dir: Path) -> Optional[Path]:
-        """Find the garak report file in the output directory."""
-        # Garak generates report files with various extensions
-        for pattern in ["report*.json", "report*.jsonl", "*.json"]:
-            matches = list(output_dir.glob(pattern))
-            if matches:
-                return max(matches, key=lambda p: p.stat().st_mtime)
+        """Find the garak report file in garak's output directory."""
+        # Garak stores reports in its default location: ~/.local/share/garak/garak_runs/
+        garak_runs_dir = Path.home() / ".local" / "share" / "garak" / "garak_runs"
+
+        # Search in garak's default output location first
+        search_dirs = [garak_runs_dir, output_dir]
+
+        for search_dir in search_dirs:
+            if not search_dir.exists():
+                continue
+
+            # Look for report files with our scan prefix or recent reports
+            for pattern in ["**/sci_scan_*.jsonl", "**/sci_scan_*.json", "**/*.report.jsonl", "**/report*.jsonl", "**/report*.json"]:
+                matches = list(search_dir.glob(pattern))
+                if matches:
+                    # Return the most recently modified file
+                    return max(matches, key=lambda p: p.stat().st_mtime)
 
         return None
 
@@ -965,7 +1014,7 @@ def _classify_execution_error(
         error_code="EXEC_001",
         troubleshooting_tips=[
             "Check the error message for specific details",
-            "Verify garak is properly installed (pip install 'garak>=2.0.0')",
+            "Verify garak is properly installed (pip install 'garak>=0.13.3')",
             "Ensure all probe names are valid",
             "Check the garak documentation for probe-specific requirements",
         ],

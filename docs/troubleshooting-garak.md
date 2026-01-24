@@ -7,11 +7,13 @@ This guide helps resolve common issues when using SCI's garak integration.
 ### Garak Not Found
 
 **Symptoms:**
+
 - `GarakInstallationError: Garak is not installed`
 - `ModuleNotFoundError: No module named 'garak'`
 - `sci run probes` fails with import error
 
 **Root Causes:**
+
 1. Garak package not installed
 2. Wrong Python environment activated
 3. Installation in different virtual environment
@@ -20,10 +22,10 @@ This guide helps resolve common issues when using SCI's garak integration.
 
 ```bash
 # Install garak
-pip install 'garak>=2.0.0'
+pip install 'garak>=0.13.3'
 
 # Or with UV
-uv add 'garak>=2.0.0'
+uv add 'garak>=0.13.3'
 
 # Verify installation
 python -c "import garak; print(garak.__version__)"
@@ -33,17 +35,20 @@ uv run python -c "import garak; print(garak.__version__)"
 ```
 
 **Prevention:**
+
 - Add garak to your `pyproject.toml` dependencies
 - Use lock files (`uv.lock` or `requirements.txt`) to ensure consistent environments
 
 ### Version Compatibility Issues
 
 **Symptoms:**
+
 - `Warning: Garak version may not be fully compatible`
 - Unexpected probe behavior
 - Missing probe modules
 
 **Root Causes:**
+
 1. Garak version < 2.0.0 installed
 2. Breaking API changes in newer garak versions
 
@@ -57,17 +62,19 @@ python -c "import garak; print(garak.__version__)"
 pip install --upgrade 'garak>=2.0.0'
 
 # Or pin to specific version
-pip install 'garak==2.0.0'
+pip install 'garak==0.13.3'
 ```
 
 ### Python Version Requirements
 
 **Symptoms:**
+
 - `SyntaxError` during import
 - Type hint errors
 - Async-related errors
 
 **Root Causes:**
+
 - Python version < 3.10
 
 **Solutions:**
@@ -89,11 +96,13 @@ uv python install 3.10
 ### Invalid Probe/Detector Names
 
 **Symptoms:**
+
 - `GarakValidationError: Unknown SCI probe name`
 - `Profile 'x' has no valid probes`
 - Suggestions shown but scan doesn't run
 
 **Root Causes:**
+
 1. Typo in probe/detector name
 2. Probe not in configuration mapping
 3. Custom probe not registered
@@ -123,11 +132,13 @@ profiles:
 ### Missing API Keys
 
 **Symptoms:**
+
 - `API key is required for provider`
 - `Authentication failed`
 - Empty API key warning
 
 **Root Causes:**
+
 1. Environment variable not set
 2. Configuration file missing API key
 3. `.secrets.yaml` not loaded
@@ -148,17 +159,20 @@ sci config show | grep -i api
 ```
 
 **Prevention:**
+
 - Use environment variables for CI/CD
 - Add `.secrets.yaml` to `.gitignore`
 
 ### Provider Configuration Errors
 
 **Symptoms:**
+
 - `Unsupported provider: x`
 - `Provider configuration validation failed`
 - `Invalid endpoint URL`
 
 **Root Causes:**
+
 1. Provider name misspelled
 2. Missing required fields
 3. Invalid URL format
@@ -187,11 +201,13 @@ providers:
 ### Timeout Errors
 
 **Symptoms:**
+
 - `GarakTimeoutError: Operation timed out`
 - Scan hangs indefinitely
 - Partial results returned
 
 **Root Causes:**
+
 1. Timeout too short for number of probes
 2. Slow API responses
 3. Network latency
@@ -211,6 +227,7 @@ sci run --provider openai --model gpt-4 --profile minimal
 ```
 
 **Prevention:**
+
 - Start with `minimal` profile for testing
 - Increase timeout based on probe count
 - Use `--dry-run` to verify configuration first
@@ -218,11 +235,13 @@ sci run --provider openai --model gpt-4 --profile minimal
 ### Connection Failures
 
 **Symptoms:**
+
 - `GarakConnectionError: Connection failed`
 - `Network unreachable`
 - `Connection timed out`
 
 **Root Causes:**
+
 1. Internet connectivity issues
 2. Firewall blocking API endpoints
 3. Provider API outage
@@ -252,11 +271,13 @@ export HTTPS_PROXY="http://proxy:8080"
 ### Rate Limiting
 
 **Symptoms:**
+
 - `Error 429: Rate limit exceeded`
 - `Too many requests`
 - Intermittent failures during scan
 
 **Root Causes:**
+
 1. Parallelism too high
 2. API tier limits exceeded
 3. Shared API key with other services
@@ -279,6 +300,7 @@ sci run --provider openai --model gpt-4 --profile minimal
 ```
 
 **Prevention:**
+
 - Monitor API usage dashboards
 - Use dedicated API keys for testing
 - Schedule scans during off-peak hours
@@ -286,11 +308,13 @@ sci run --provider openai --model gpt-4 --profile minimal
 ### Authentication Errors
 
 **Symptoms:**
+
 - `Error 401: Unauthorized`
 - `Invalid API key`
 - `Authentication failed for provider`
 
 **Root Causes:**
+
 1. API key expired or revoked
 2. Wrong API key format
 3. API key doesn't have required permissions
@@ -312,6 +336,7 @@ curl https://api.openai.com/v1/models \
 ```
 
 **Prevention:**
+
 - Rotate API keys regularly
 - Use least-privilege API keys
 - Test keys before running scans
@@ -321,11 +346,13 @@ curl https://api.openai.com/v1/models \
 ### Missing Report Files
 
 **Symptoms:**
+
 - `Report not found`
 - `No report files in output directory`
 - Empty findings despite successful execution
 
 **Root Causes:**
+
 1. Garak didn't generate output
 2. Wrong output directory
 3. Permissions issues
@@ -351,11 +378,13 @@ sci run --provider openai --model gpt-4 \
 ### Parsing Errors
 
 **Symptoms:**
+
 - `JSONDecodeError: Invalid JSON`
 - `Report parse error`
 - Corrupted report files
 
 **Root Causes:**
+
 1. Garak crash during execution
 2. Incomplete write due to timeout
 3. Encoding issues
@@ -376,11 +405,13 @@ sci run --provider openai --model gpt-4 --profile minimal
 ### Storage Failures
 
 **Symptoms:**
+
 - `StorageError: Failed to save report`
 - `Permission denied`
 - `No space left on device`
 
 **Root Causes:**
+
 1. Insufficient disk space
 2. Directory permissions
 3. Invalid path
@@ -405,6 +436,7 @@ sci run --provider openai --model gpt-4 \
 ### OpenAI
 
 **Common Issues:**
+
 - Model not available for account tier
 - Organization ID required
 - API key rotation
@@ -422,6 +454,7 @@ providers:
 ### Anthropic
 
 **Common Issues:**
+
 - Rate limits stricter than other providers
 - Model name format changes
 
@@ -440,6 +473,7 @@ garak:
 ### Azure OpenAI
 
 **Common Issues:**
+
 - Endpoint format incorrect
 - Deployment name vs model name confusion
 - API version compatibility
@@ -461,6 +495,7 @@ providers:
 ### AWS Bedrock
 
 **Common Issues:**
+
 - IAM permissions insufficient
 - Model not available in region
 - Credential chain issues
@@ -490,6 +525,7 @@ aws bedrock list-foundation-models --region us-east-1
 ### Google Cloud
 
 **Common Issues:**
+
 - Project billing not enabled
 - Vertex AI API not enabled
 - Quota exceeded
@@ -518,11 +554,13 @@ gcloud compute project-info describe --project=your-project
 ### Slow Scan Execution
 
 **Symptoms:**
+
 - Scans take much longer than expected
 - Progress seems stuck
 - High memory usage
 
 **Root Causes:**
+
 1. Too many probes in profile
 2. Large sample sizes
 3. Extended detectors enabled
@@ -550,11 +588,13 @@ sci run --provider openai --model gpt-4 --profile minimal
 ### Memory Usage
 
 **Symptoms:**
+
 - `MemoryError`
 - System becomes unresponsive
 - OOM killer terminates process
 
 **Root Causes:**
+
 1. Too many concurrent probes
 2. Large report files in memory
 3. Memory leaks in long-running scans
@@ -610,6 +650,7 @@ echo "=== Configuration ===" && sci config show
 ### Reporting Issues
 
 When reporting issues, include:
+
 1. Full error message and stack trace
 2. SCI and garak versions
 3. Configuration (without secrets)

@@ -292,12 +292,12 @@ DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
         "goodside.WhoIsRiley",
     ],
     "lmrc": [
-        "lmrc.Anthropomorphisation",
         "lmrc.Bullying",
         "lmrc.Deadnaming",
-        "lmrc.Profanity",
+        "lmrc.QuackMedicine",
         "lmrc.SexualContent",
-        "lmrc.Slurs",
+        "lmrc.Sexualisation",
+        "lmrc.SlurUsage",
     ],
     "misleading": [
         "misleading.FalseAssertion50",

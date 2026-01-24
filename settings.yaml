@@ -1,0 +1,244 @@
+# =============================================================================
+# SCI - Security-Centered Intelligence
+# Configuration File
+# =============================================================================
+# This file configures the SCI security testing framework.
+# Copy this file to settings.yaml and customize as needed.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Logging Configuration
+# -----------------------------------------------------------------------------
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+
+  # Log format: "json" for CI/CD, "console" for development
+  format: console
+
+  # Output destination: stdout, stderr, or file path
+  output: stdout
+
+  # Enable structured logging with context
+  structured: true
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  # Directory for test results
+  directory: ./results
+
+  # Output format: json, yaml, html
+  format: json
+
+  # Enable compression for output files
+  compression: false
+
+  # Include timestamps in output filenames
+  include_timestamps: true
+
+# -----------------------------------------------------------------------------
+# EU AI Act Compliance Configuration
+# -----------------------------------------------------------------------------
+compliance:
+  # EU AI Act articles to evaluate
+  articles:
+    - article-9   # Risk management
+    - article-10  # Data governance
+    - article-13  # Transparency
+    - article-14  # Human oversight
+    - article-15  # Accuracy and robustness
+
+  # EU AI Act annexes to include
+  annexes:
+    - annex-iv    # Technical documentation
+
+  # Risk threshold for compliance (0.0-1.0)
+  risk_threshold: 0.7
+
+  # Enable strict compliance mode
+  strict_mode: false
+
+  # Generate evidence documentation
+  generate_evidence: true
+
+# -----------------------------------------------------------------------------
+# Garak Framework Configuration
+# -----------------------------------------------------------------------------
+# Garak is a security testing framework for LLMs that provides probes and
+# detectors for various attack vectors. SCI integrates with garak to leverage
+# its testing capabilities.
+garak:
+  # Enable garak framework integration
+  enabled: true
+
+  # Base URL for garak API endpoint (if using hosted garak)
+  # Leave empty/null for local garak execution
+  # base_url: https://your-garak-instance.example.com
+
+  # Request timeout for garak operations in seconds (1-600)
+  timeout: 60
+
+  # Maximum retry attempts for garak API calls (0-10)
+  max_retries: 3
+
+  # Number of parallel probe executions (1-100)
+  parallelism: 4
+
+  # Limit number of samples per probe (null for unlimited)
+  # Useful for faster testing during development
+  limit_samples: null
+
+  # Use extended detectors for more thorough testing
+  # Extended detectors are slower but more comprehensive
+  extended_detectors: true
+
+  # Mapping of SCI probe names to garak probe identifiers
+  # This allows SCI to translate its probe names to garak's probe modules
+  probe_categories:
+    # Prompt injection probes
+    prompt_injection_basic: promptinject
+    prompt_injection_advanced: promptinject
+    prompt_injection_multilingual: promptinject
+    # Jailbreak probes
+    jailbreak_basic: dan
+    jailbreak_roleplay: dan
+    jailbreak_encoding: encoding
+    # Extraction probes
+    extraction_system_prompt: leakreplay
+    extraction_training_data: leakreplay
+    extraction_model_info: leakreplay
+    # Manipulation probes
+    manipulation_output: malwaregen
+    manipulation_context: malwaregen
+
+  # Timeout configuration
+  scan_timeout: 6000  # Overall scan timeout in seconds (1-7200)
+  probe_timeout: 1200  # Per-probe timeout in seconds (1-600)
+  connection_timeout: 3000  # Connection validation timeout in seconds (1-300)
+
+  # Retry configuration
+  retry_delay: 1.0  # Initial retry delay in seconds (0.1-60.0)
+
+  # Error handling
+  continue_on_error: true  # Continue scan if individual probe fails
+
+# -----------------------------------------------------------------------------
+# Test Profiles
+# -----------------------------------------------------------------------------
+# Profiles define which probes and detectors to run during testing.
+# Use --profile to select a profile when running tests.
+profiles:
+  minimal:
+    name: minimal
+    description: Quick smoke test with essential probes only
+    probes:
+      - prompt_injection_basic
+      - jailbreak_basic
+    detectors:
+      - toxicity_basic
+      - leakage_basic
+    compliance_tags: []
+    max_parallel: 3
+    timeout: 120
+
+  standard:
+    name: standard
+    description: Standard security assessment covering major vulnerability categories
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - extraction_system_prompt
+      - extraction_training_data
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - leakage_basic
+      - leakage_pii
+      - bias_detection
+    compliance_tags:
+      - article-9
+      - article-15
+    max_parallel: 5
+    timeout: 300
+
+  comprehensive:
+    name: comprehensive
+    description: Full security assessment with all probes and EU AI Act compliance mapping
+    probes:
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - prompt_injection_multilingual
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+      - extraction_system_prompt
+      - extraction_training_data
+      - extraction_model_info
+      - manipulation_output
+      - manipulation_context
+      - compliance_transparency
+      - compliance_human_oversight
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - toxicity_subtle
+      - leakage_basic
+      - leakage_pii
+      - leakage_credentials
+      - bias_detection
+      - bias_demographic
+      - hallucination_factual
+      - compliance_violation
+    compliance_tags:
+      - article-9
+      - article-10
+      - article-13
+      - article-14
+      - article-15
+      - annex-iv
+    max_parallel: 10
+    timeout: 600
+
+# -----------------------------------------------------------------------------
+# LLM Provider Configuration
+# -----------------------------------------------------------------------------
+# Provider credentials should be stored in .secrets.yaml or environment variables.
+# This section configures provider-specific settings (non-sensitive).
+providers:
+  openai:
+    base_url: https://api.openai.com/v1
+    timeout: 30
+    max_retries: 3
+    model: gpt-4
+
+  anthropic:
+    base_url: https://api.anthropic.com
+    timeout: 30
+    max_retries: 3
+    model: claude-3-opus-20240229
+
+  google:
+    location: us-central1
+    timeout: 30
+    max_retries: 3
+    model: gemini-pro
+
+  azure:
+    api_version: 2024-02-15-preview
+    timeout: 30
+    max_retries: 3
+    # Set endpoint, deployment_name via environment or .secrets.yaml
+
+  aws:
+    region: us-east-1
+    timeout: 30
+    max_retries: 3
+
+  huggingface:
+    base_url: https://api-inference.huggingface.co
+    timeout: 60
+    max_retries: 3

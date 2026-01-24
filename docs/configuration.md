@@ -298,10 +298,10 @@ SCI integrates with the [garak](https://github.com/leondz/garak) framework to le
 
 ```bash
 # Install garak dependency
-pip install 'garak>=2.0.0'
+pip install 'garak>=0.13.3'
 
 # Or with UV
-uv add 'garak>=2.0.0'
+uv add 'garak>=0.13.3'
 ```
 
 ### Configuration
@@ -384,7 +384,7 @@ garak:
 
 **Common Issues:**
 
-1. **Garak not found**: Install with `pip install 'garak>=2.0.0'`
+1. **Garak not found**: Install with `pip install 'garak>=0.13.3'`
 2. **Timeout errors**: Increase `scan_timeout` or reduce `parallelism`
 3. **Rate limiting**: Reduce `parallelism` (try 3-5 for strict rate limits)
 4. **Authentication errors**: Verify API keys in providers section

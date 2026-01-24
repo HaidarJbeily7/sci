@@ -318,6 +318,11 @@ class GarakEngine:
                 ],
             )
 
+        # Use the adapter's model_name if it has applied provider-specific formatting
+        # (e.g., litellm needs "anthropic/claude-3" format)
+        if "model_name" in additional_params:
+            effective_model = additional_params["model_name"]
+
         # Log scan initiation (mask credentials)
         self.logger.info(
             "scan_initiating",
