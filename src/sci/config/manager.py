@@ -61,6 +61,8 @@ class ConfigManager:
                 raise FileNotFoundError(f"Configuration file not found: {config_path}")
             settings_files.append(str(config_path))
             self._config_file = config_path
+            # Always include secrets files alongside the specified config
+            settings_files.extend([".secrets.yaml", ".secrets.json"])
         else:
             # Default search paths
             settings_files = [
@@ -74,10 +76,9 @@ class ConfigManager:
         self._settings = Dynaconf(
             envvar_prefix="SCI",
             settings_files=settings_files,
-            environments=True,
+            environments=False,
             load_dotenv=True,
             merge_enabled=True,
-            env_switcher="SCI_ENV",
             default_settings_paths=[],
         )
 

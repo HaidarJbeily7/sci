@@ -512,6 +512,9 @@ class GarakEngine:
         Returns:
             Scan results dictionary.
         """
+        # Remove model_name from additional_params to avoid duplicate keyword argument
+        scan_params = {k: v for k, v in additional_params.items() if k != "model_name"}
+
         if not continue_on_error:
             # Execute all probes together
             return self.client.run_scan(
@@ -520,7 +523,7 @@ class GarakEngine:
                 probes=probes,
                 env_vars=env_vars,
                 output_dir=output_dir,
-                **additional_params,
+                **scan_params,
             )
 
         # Execute probes individually for error recovery
@@ -537,7 +540,7 @@ class GarakEngine:
                     probes=[probe],
                     env_vars=env_vars,
                     output_dir=output_dir,
-                    **additional_params,
+                    **scan_params,
                 )
 
                 if result.get("status") == "success":

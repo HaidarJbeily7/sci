@@ -182,9 +182,9 @@ class GarakClientWrapper:
             parallelism=self.config.parallelism,
         )
 
-        # Set up output directory
+        # Set up output directory (pop to avoid passing twice to _build_cli_args)
         output_dir = _setup_output_directory(
-            Path(kwargs.get("output_dir", tempfile.gettempdir())),
+            Path(kwargs.pop("output_dir", tempfile.gettempdir())),
             scan_id,
         )
 
@@ -625,15 +625,26 @@ class GarakClientWrapper:
 
     def _parse_list_output(self, output: str) -> list[str]:
         """Parse garak's list output to extract identifiers."""
+        import re
+
+        # Remove ANSI escape codes
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
         items = []
         for line in output.strip().split("\n"):
-            line = line.strip()
-            # Skip empty lines and headers
+            # Strip ANSI codes first
+            line = ansi_escape.sub("", line).strip()
+            # Skip empty lines, headers, and version info
             if not line or line.startswith("#") or line.startswith("="):
                 continue
-            # Extract the identifier (usually the first word or before a colon)
+            if line.startswith("garak "):
+                continue
+            # Skip module headers (lines with 🌟) and unavailable probes (💤)
+            if "🌟" in line or "💤" in line:
+                continue
+            # Extract the identifier after "probes:" or "detectors:" or "generators:"
             if ":" in line:
-                item = line.split(":")[0].strip()
+                item = line.split(":", 1)[1].strip()
             else:
                 item = line.split()[0] if line.split() else ""
             if item and not item.startswith("-"):

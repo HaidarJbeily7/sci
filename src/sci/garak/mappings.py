@@ -243,17 +243,17 @@ EU_AI_ACT_MAPPING: dict[str, dict[str, Any]] = {
 
 # Default probes for each garak module
 # Used when mapping a module without specific probe classes
+# Note: These are the available probes in garak 0.13.x
 DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
     "promptinject": [
-        "promptinject.HumanJailbreaks",
-        "promptinject.AutoDAN",
-        "promptinject.HijackHateHumansMini",
+        "promptinject.HijackHateHumans",
+        "promptinject.HijackKillHumans",
+        "promptinject.HijackLongPrompt",
     ],
     "dan": [
-        "dan.DAN",
-        "dan.DUDE",
-        "dan.DANJailbreak",
-        "dan.ChatGPT_Developer_Mode",
+        "dan.Ablation_Dan_11_0",
+        "dan.AutoDANCached",
+        "dan.DanInTheWild",
     ],
     "encoding": [
         "encoding.InjectBase64",
@@ -264,6 +264,8 @@ DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
     "leakreplay": [
         "leakreplay.LiteratureCloze",
         "leakreplay.GuardianCloze",
+        "leakreplay.LiteratureComplete",
+        "leakreplay.GuardianComplete",
     ],
     "malwaregen": [
         "malwaregen.Evasion",
