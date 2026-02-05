@@ -165,7 +165,7 @@ Thumbs.db
 .secrets.json
 settings.local.yaml
 settings.local.json
-results/
+results*/
 reports/
 *.log
 

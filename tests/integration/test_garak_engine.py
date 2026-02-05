@@ -1,7 +1,7 @@
 """
 Integration tests for GarakEngine.
 
-Tests the full scan execution workflow with mocked GarakClientWrapper,
+Tests the full scan execution workflow with mocked GarakClient,
 including profile loading, probe mapping, result processing, and error handling.
 """
 
@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sci.config.manager import ConfigManager
-from sci.config.models import GarakConfig, OutputConfig, ProviderConfig, TestProfile
+from sci.config.models import GarakConfig
 from sci.engine.exceptions import (
     GarakConfigurationError,
     GarakConnectionError,
@@ -39,17 +39,24 @@ class TestGarakEngineInitialization:
     def mock_dependencies(self) -> Generator[dict, None, None]:
         """Mock all external dependencies for engine initialization."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.validate_installation.return_value = True
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 yield {"client": mock_client, "garak": mock_garak}
 
@@ -93,16 +100,23 @@ class TestGarakEngineProfileLoading:
     def engine(self, tmp_path: Path) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -161,16 +175,23 @@ class TestGarakEngineProbeValidation:
     def engine(self) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -208,17 +229,24 @@ class TestGarakEngineScanExecution:
     ) -> Generator[tuple[Any, MagicMock], None, None]:
         """Create engine with mocked client for testing execution."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
         mock_client.run_scan.return_value = get_mock_client_run_scan_response()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -302,16 +330,23 @@ class TestGarakEngineProviderConfiguration:
     def engine(self) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -353,17 +388,24 @@ class TestGarakEngineConfigurationValidation:
     def engine(self) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
         mock_client.validate_installation.return_value = True
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -407,16 +449,23 @@ class TestGarakEngineComplianceTagging:
     def engine(self) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -446,16 +495,23 @@ class TestGarakEngineProbeListing:
     def engine(self) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -497,16 +553,23 @@ class TestGarakEngineCheckpoints:
     def engine(self, tmp_path: Path) -> Generator[Any, None, None]:
         """Create a mock engine for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 
@@ -563,7 +626,7 @@ class TestGarakEngineErrorRecovery:
     ) -> Generator[tuple[Any, MagicMock], None, None]:
         """Create engine with client that fails on first attempts."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         mock_client = MagicMock()
         mock_client.list_available_probes.return_value = get_mock_available_probes()
@@ -584,10 +647,17 @@ class TestGarakEngineErrorRecovery:
         mock_client.run_scan.side_effect = mock_run_scan
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
             with patch(
-                "sci.engine.garak_engine.GarakClientWrapper", return_value=mock_client
+                "sci.engine.garak_engine.GarakClient", return_value=mock_client
             ):
                 from sci.engine.garak_engine import GarakEngine
 

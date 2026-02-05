@@ -4,19 +4,19 @@ Garak framework integration for SCI.
 This module provides integration with the garak security testing framework,
 enabling SCI to leverage garak's probes and detectors for LLM security testing.
 
-The integration uses garak programmatically by invoking `garak.cli.main()` with
-appropriate arguments. Provider adapters map SCI's `ProviderConfig` models to
-garak's expected environment variables and command-line parameters.
+The integration uses garak's Python API directly for in-process execution.
+Provider adapters map SCI's `ProviderConfig` models to garak's expected
+environment variables and command-line parameters.
 
 The mapping system bridges SCI's semantic probe/detector names with garak's
 technical identifiers, and provides EU AI Act compliance tagging.
 
 Example:
-    >>> from sci.garak import GarakClientWrapper, ProbeMapper
+    >>> from sci.garak import GarakClient, ProbeMapper
     >>> from sci.config.models import GarakConfig
     >>>
     >>> config = GarakConfig(parallelism=5, timeout=120)
-    >>> client = GarakClientWrapper(config)
+    >>> client = GarakClient(config)
     >>>
     >>> # Map SCI probe names to garak identifiers
     >>> mapper = ProbeMapper(config)
@@ -41,7 +41,7 @@ from sci.garak.adapters import (
     get_adapter_for_provider,
     validate_provider_config,
 )
-from sci.garak.client import GarakClientWrapper
+from sci.garak.client import GarakClient
 from sci.garak.mappings import (
     ComplianceMapper,
     DetectorMapper,
@@ -55,7 +55,7 @@ from sci.garak.mappings import (
 
 __all__ = [
     # Client
-    "GarakClientWrapper",
+    "GarakClient",
     # Mappers
     "ProbeMapper",
     "DetectorMapper",

@@ -1,14 +1,12 @@
 """
-Unit tests for GarakClientWrapper.
+Unit tests for GarakClient.
 
-Tests the garak client wrapper functionality including initialization,
+Tests the garak client functionality including initialization,
 scan execution, report parsing, and error handling.
 """
 
-import io
 import json
 import os
-import tempfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -18,390 +16,233 @@ import pytest
 from sci.config.models import GarakConfig
 from sci.engine.exceptions import (
     GarakConnectionError,
-    GarakExecutionError,
     GarakInstallationError,
-    GarakTimeoutError,
-    GarakValidationError,
 )
 
 
-class TestGarakClientWrapperInitialization:
-    """Tests for GarakClientWrapper initialization."""
+class TestGarakClientInitialization:
+    """Tests for GarakClient initialization."""
 
     def test_initialization_validates_installation(self) -> None:
         """Test that initialization validates garak installation."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
+        mock_config = MagicMock()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": mock_config,
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
-            from sci.garak.client import GarakClientWrapper
+            from sci.garak.client import GarakClient
 
             config = GarakConfig()
-            client = GarakClientWrapper(config)
+            client = GarakClient(config)
             assert client is not None
             assert client.config == config
 
     def test_initialization_raises_on_missing_garak(self) -> None:
         """Test that initialization raises error when garak is not installed."""
         with patch.dict("sys.modules", {"garak": None}):
-            # Force reimport to trigger ImportError
             with pytest.raises(GarakInstallationError) as exc_info:
-                from sci.garak.client import GarakClientWrapper
+                from sci.garak.client import GarakClient
 
                 config = GarakConfig()
-                # Mock the validate_installation to raise
                 with patch.object(
-                    GarakClientWrapper,
+                    GarakClient,
                     "validate_installation",
                     side_effect=GarakInstallationError(
                         message="Garak is not installed",
-                        required_version=">=2.0.0",
+                        required_version=">=0.13.3",
                     ),
                 ):
-                    GarakClientWrapper(config)
+                    GarakClient(config)
 
             assert "INSTALL" in str(exc_info.value.error_code)
 
-    def test_initialization_warns_on_old_garak_version(self) -> None:
-        """Test that initialization warns on old garak version."""
-        mock_garak = MagicMock()
-        mock_garak.__version__ = "1.5.0"  # Old version
 
-        with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
-        ):
-            from sci.garak.client import GarakClientWrapper
-
-            config = GarakConfig()
-            # Should not raise but will log warning
-            client = GarakClientWrapper(config)
-            assert client is not None
-
-
-class TestGarakClientWrapperRunScan:
-    """Tests for GarakClientWrapper.run_scan() method."""
+class TestGarakClientRunScan:
+    """Tests for GarakClient.run_scan() method."""
 
     @pytest.fixture
     def mock_client(self) -> Any:
         """Create a mock garak client for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
-        mock_garak.cli = MagicMock()
-        mock_garak.cli.main = MagicMock(return_value=None)
+        mock_garak.__version__ = "0.13.3"
+        mock_config = MagicMock()
+        mock_config.loaded = False
+        mock_config.transient = MagicMock()
+        mock_config.system = MagicMock()
+        mock_config.plugins = MagicMock()
+        mock_config.reporting = MagicMock()
+        mock_config.run = MagicMock()
+
+        mock_plugins = MagicMock()
+        mock_command = MagicMock()
+        mock_evaluators = MagicMock()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": mock_garak.cli}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": mock_config,
+                "garak._plugins": mock_plugins,
+                "garak.command": mock_command,
+                "garak.evaluators": mock_evaluators,
+                "garak.exception": MagicMock(),
+            },
         ):
-            from sci.garak.client import GarakClientWrapper
+            from sci.garak.client import GarakClient
 
             config = GarakConfig(parallelism=5, timeout=60)
-            client = GarakClientWrapper(config)
-            client._execute_garak = MagicMock(return_value=0)
+            client = GarakClient(config)
             return client
 
-    def test_run_scan_success(self, mock_client: Any, tmp_path: Path) -> None:
-        """Test successful scan execution."""
-        # Create mock report file
-        report_data = {
-            "results": [
-                {"probe": "test.Probe", "passed": True, "status": "pass"}
-            ]
-        }
-        report_file = tmp_path / "report.json"
+    def test_run_scan_success(
+        self, mock_client: Any, tmp_path: Path
+    ) -> None:
+        """Test successful scan execution using Python API."""
+        # Create mock report file with proper garak format (entry_type: attempt)
+        report_file = tmp_path / "sci_scan_test123.jsonl"
+        findings = [
+            {"entry_type": "attempt", "probe_classname": "test.Probe", "passed": True, "status": "pass"}
+        ]
         with open(report_file, "w") as f:
-            json.dump(report_data, f)
+            for finding in findings:
+                f.write(json.dumps(finding) + "\n")
 
-        mock_client._find_report_file = MagicMock(return_value=report_file)
+        # Mock the in-process execution
+        mock_client._run_garak_in_process = MagicMock(
+            return_value=str(report_file)
+        )
 
         result = mock_client.run_scan(
-            generator_type="openai",
+            generator_type="openai.OpenAIGenerator",
             model_name="gpt-4",
             probes=["test.Probe"],
             env_vars={"OPENAI_API_KEY": "test-key"},
-            output_dir=tmp_path,
         )
 
         assert result["status"] == "success"
-        assert result["generator_type"] == "openai"
+        assert result["generator_type"] == "openai.OpenAIGenerator"
         assert result["model_name"] == "gpt-4"
         assert "scan_id" in result
         assert "duration_ms" in result
+        assert len(result["findings"]) == 1
 
-    def test_run_scan_with_empty_probes_raises_error(
+    def test_run_scan_handles_errors(
         self, mock_client: Any
     ) -> None:
-        """Test that empty probes list raises validation error."""
-        with pytest.raises(GarakValidationError) as exc_info:
-            mock_client.run_scan(
-                generator_type="openai",
-                model_name="gpt-4",
-                probes=[],
-                env_vars={"OPENAI_API_KEY": "test-key"},
-            )
+        """Test error handling during scan execution."""
+        # Mock the in-process execution to raise an error
+        mock_client._run_garak_in_process = MagicMock(
+            side_effect=Exception("Test error")
+        )
 
-        assert "VAL" in exc_info.value.error_code
-
-    def test_run_scan_with_empty_generator_raises_error(
-        self, mock_client: Any
-    ) -> None:
-        """Test that empty generator type raises validation error."""
-        with pytest.raises(GarakValidationError):
-            mock_client.run_scan(
-                generator_type="",
-                model_name="gpt-4",
-                probes=["test.Probe"],
-                env_vars={},
-            )
-
-    def test_run_scan_with_empty_model_raises_error(
-        self, mock_client: Any
-    ) -> None:
-        """Test that empty model name raises validation error."""
-        with pytest.raises(GarakValidationError):
-            mock_client.run_scan(
-                generator_type="openai",
-                model_name="",
-                probes=["test.Probe"],
-                env_vars={},
-            )
-
-    def test_run_scan_restores_environment(
-        self, mock_client: Any, tmp_path: Path
-    ) -> None:
-        """Test that environment is restored after scan."""
-        original_env = os.environ.copy()
-
-        # Create mock report
-        report_file = tmp_path / "report.json"
-        with open(report_file, "w") as f:
-            json.dump({"results": []}, f)
-        mock_client._find_report_file = MagicMock(return_value=report_file)
-
-        mock_client.run_scan(
-            generator_type="openai",
+        result = mock_client.run_scan(
+            generator_type="openai.OpenAIGenerator",
             model_name="gpt-4",
             probes=["test.Probe"],
-            env_vars={"CUSTOM_VAR": "custom_value"},
-            output_dir=tmp_path,
+            env_vars={"OPENAI_API_KEY": "test-key"},
         )
 
-        # Environment should be restored
-        assert "CUSTOM_VAR" not in os.environ
-        # Original values should still be there
-        for key in original_env:
-            if key in os.environ:
-                assert os.environ[key] == original_env[key]
+        assert result["status"] == "error"
+        assert "error" in result
+        assert result["error"]["type"] == "Exception"
 
 
-class TestGarakClientWrapperCLIArguments:
-    """Tests for CLI argument building."""
+class TestGarakClientReportParsing:
+    """Tests for report parsing."""
 
     @pytest.fixture
     def client(self) -> Any:
         """Create a mock client for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
-            from sci.garak.client import GarakClientWrapper
+            from sci.garak.client import GarakClient
 
-            config = GarakConfig(
-                parallelism=10,
-                timeout=60,
-                extended_detectors=True,
-                limit_samples=100,
-            )
-            return GarakClientWrapper(config)
+            return GarakClient(GarakConfig())
 
-    def test_build_cli_args_basic(self, client: Any, tmp_path: Path) -> None:
-        """Test basic CLI argument building."""
-        args = client._build_cli_args(
-            generator_type="openai",
-            model_name="gpt-4",
-            probes=["probe.Test1", "probe.Test2"],
-            output_dir=tmp_path,
-        )
-
-        assert "--model_type" in args
-        assert "openai" in args
-        assert "--model_name" in args
-        assert "gpt-4" in args
-        assert "--probes" in args
-        assert "probe.Test1,probe.Test2" in args
-        assert "--parallel" in args
-        assert "10" in args
-
-    def test_build_cli_args_with_extended_detectors(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test CLI args include extended detectors flag."""
-        args = client._build_cli_args(
-            generator_type="openai",
-            model_name="gpt-4",
-            probes=["probe.Test"],
-            output_dir=tmp_path,
-        )
-
-        assert "--extended_detectors" in args
-
-    def test_build_cli_args_with_sample_limit(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test CLI args include sample limit."""
-        args = client._build_cli_args(
-            generator_type="openai",
-            model_name="gpt-4",
-            probes=["probe.Test"],
-            output_dir=tmp_path,
-        )
-
-        assert "--generations" in args
-        assert "100" in args
-
-
-class TestGarakClientWrapperReportParsing:
-    """Tests for report file discovery and parsing."""
-
-    @pytest.fixture
-    def client(self) -> Any:
-        """Create a mock client for testing."""
-        mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
-
-        with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
-        ):
-            from sci.garak.client import GarakClientWrapper
-
-            return GarakClientWrapper(GarakConfig())
-
-    def test_find_report_file_json(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test finding JSON report file."""
-        report_file = tmp_path / "report.json"
-        report_file.write_text('{"results": []}')
-
-        found = client._find_report_file(tmp_path)
-        assert found is not None
-        assert found.suffix == ".json"
-
-    def test_find_report_file_jsonl(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test finding JSONL report file."""
-        report_file = tmp_path / "report.jsonl"
-        report_file.write_text('{"probe": "test"}\n')
-
-        found = client._find_report_file(tmp_path)
-        assert found is not None
-        assert found.suffix == ".jsonl"
-
-    def test_find_report_file_prefers_most_recent(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test that most recent report is found."""
-        import time
-
-        old_report = tmp_path / "report_old.json"
-        old_report.write_text('{"results": []}')
-
-        time.sleep(0.1)
-
-        new_report = tmp_path / "report_new.json"
-        new_report.write_text('{"results": [{"new": true}]}')
-
-        found = client._find_report_file(tmp_path)
-        assert found is not None
-        assert "new" in found.name
-
-    def test_find_report_file_returns_none_if_missing(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test that None is returned when no report exists."""
-        found = client._find_report_file(tmp_path)
-        assert found is None
-
-    def test_parse_garak_report_json(
-        self, client: Any, tmp_path: Path
-    ) -> None:
-        """Test parsing JSON report."""
-        report_data = {
-            "results": [
-                {"probe": "test.Probe", "passed": True},
-                {"probe": "test.Probe2", "passed": False},
-            ]
-        }
-        report_file = tmp_path / "report.json"
-        with open(report_file, "w") as f:
-            json.dump(report_data, f)
-
-        result = client._parse_garak_report(report_file)
-
-        assert "findings" in result
-        assert "summary" in result
-        assert len(result["findings"]) == 2
-
-    def test_parse_garak_report_jsonl(
+    def test_parse_report_jsonl(
         self, client: Any, tmp_path: Path
     ) -> None:
         """Test parsing JSONL report."""
+        # Include entry_type: "attempt" as garak does in real reports
         findings = [
-            {"probe": "test.Probe1", "passed": True},
-            {"probe": "test.Probe2", "passed": False},
-            {"probe": "test.Probe3", "passed": True},
+            {"entry_type": "attempt", "probe_classname": "test.Probe1", "passed": True},
+            {"entry_type": "attempt", "probe_classname": "test.Probe2", "passed": False},
+            {"entry_type": "attempt", "probe_classname": "test.Probe3", "passed": True},
         ]
         report_file = tmp_path / "report.jsonl"
         with open(report_file, "w") as f:
             for finding in findings:
                 f.write(json.dumps(finding) + "\n")
 
-        result = client._parse_garak_report(report_file)
+        result = client._parse_report(str(report_file))
 
-        assert "findings" in result
-        assert len(result["findings"]) == 3
+        assert len(result) == 3
+        assert result[0]["probe_classname"] == "test.Probe1"
 
-    def test_parse_garak_report_handles_missing_file(
-        self, client: Any, tmp_path: Path
+    def test_parse_report_missing_file(
+        self, client: Any
     ) -> None:
         """Test handling of missing report file."""
-        result = client._parse_garak_report(tmp_path / "nonexistent.json")
+        result = client._parse_report(None)
+        assert result == []
 
-        assert result["findings"] == []
-        assert result["summary"] == {}
+        result = client._parse_report("/nonexistent/file.jsonl")
+        assert result == []
 
-    def test_parse_garak_report_handles_invalid_json(
+    def test_parse_report_handles_invalid_json(
         self, client: Any, tmp_path: Path
     ) -> None:
         """Test handling of invalid JSON in report."""
-        report_file = tmp_path / "report.json"
+        report_file = tmp_path / "report.jsonl"
         report_file.write_text("not valid json {{{")
 
-        result = client._parse_garak_report(report_file)
+        result = client._parse_report(str(report_file))
 
-        assert result["findings"] == []
-        assert result["summary"] == {}
+        assert result == []
 
 
-class TestGarakClientWrapperSummaryGeneration:
+class TestGarakClientSummaryGeneration:
     """Tests for summary generation from findings."""
 
     @pytest.fixture
     def client(self) -> Any:
         """Create a mock client for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": MagicMock(),
+                "garak._plugins": MagicMock(),
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
-            from sci.garak.client import GarakClientWrapper
+            from sci.garak.client import GarakClient
 
-            return GarakClientWrapper(GarakConfig())
+            return GarakClient(GarakConfig())
 
     def test_generate_summary_empty_findings(self, client: Any) -> None:
         """Test summary generation with empty findings."""
@@ -415,9 +256,9 @@ class TestGarakClientWrapperSummaryGeneration:
     def test_generate_summary_all_passed(self, client: Any) -> None:
         """Test summary with all passed findings."""
         findings = [
-            {"probe": "test.Probe", "passed": True},
-            {"probe": "test.Probe", "passed": True},
-            {"probe": "test.Probe2", "passed": True},
+            {"probe_classname": "test.Probe", "passed": True},
+            {"probe_classname": "test.Probe", "passed": True},
+            {"probe_classname": "test.Probe2", "passed": True},
         ]
 
         summary = client._generate_summary(findings)
@@ -430,10 +271,10 @@ class TestGarakClientWrapperSummaryGeneration:
     def test_generate_summary_mixed_results(self, client: Any) -> None:
         """Test summary with mixed pass/fail results."""
         findings = [
-            {"probe": "test.Probe1", "passed": True},
-            {"probe": "test.Probe1", "passed": False},
-            {"probe": "test.Probe2", "passed": True},
-            {"probe": "test.Probe2", "passed": False},
+            {"probe_classname": "test.Probe1", "passed": True},
+            {"probe_classname": "test.Probe1", "passed": False},
+            {"probe_classname": "test.Probe2", "passed": True},
+            {"probe_classname": "test.Probe2", "passed": False},
         ]
 
         summary = client._generate_summary(findings)
@@ -446,9 +287,9 @@ class TestGarakClientWrapperSummaryGeneration:
     def test_generate_summary_groups_by_probe(self, client: Any) -> None:
         """Test that summary groups results by probe."""
         findings = [
-            {"probe": "probe.A", "passed": True},
-            {"probe": "probe.A", "passed": False},
-            {"probe": "probe.B", "passed": True},
+            {"probe_classname": "probe.A", "passed": True},
+            {"probe_classname": "probe.A", "passed": False},
+            {"probe_classname": "probe.B", "passed": True},
         ]
 
         summary = client._generate_summary(findings)
@@ -460,227 +301,181 @@ class TestGarakClientWrapperSummaryGeneration:
         assert summary["probes"]["probe.A"]["failed"] == 1
 
 
-class TestGarakClientWrapperProbeListing:
-    """Tests for probe and generator listing."""
+class TestGarakClientProbeGeneratorListing:
+    """Tests for probe and generator listing via Python API."""
 
     @pytest.fixture
     def client(self) -> Any:
         """Create a mock client for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
+        mock_config = MagicMock()
+        mock_config.loaded = False
+        mock_plugins = MagicMock()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": mock_config,
+                "garak._plugins": mock_plugins,
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
-            from sci.garak.client import GarakClientWrapper
+            from sci.garak.client import GarakClient
 
-            client = GarakClientWrapper(GarakConfig())
-            # Clear LRU cache for testing
+            client = GarakClient(GarakConfig())
+            # Clear LRU cache
             client.list_available_probes.cache_clear()
             client.list_available_generators.cache_clear()
             return client
 
-    def test_list_available_probes(self, client: Any) -> None:
-        """Test listing available probes."""
-        mock_output = """
-        promptinject.HumanJailbreaks
-        promptinject.AutoDAN
-        dan.DAN
-        encoding.InjectBase64
-        """
+    def test_list_available_probes(
+        self, client: Any
+    ) -> None:
+        """Test listing probes using Python API."""
+        mock_plugins_list = [
+            {"module_name": "promptinject.HumanJailbreaks"},
+            {"module_name": "encoding.InjectBase64"},
+            {"module_name": "dan.DAN"},
+        ]
 
-        def mock_execute(args, stdout, stderr):
-            stdout.write(mock_output)
-            return 0
+        with patch("garak._plugins.enumerate_plugins", return_value=mock_plugins_list):
+            with patch("garak._config.loaded", False):
+                with patch("garak._config.load_base_config"):
+                    probes = client.list_available_probes()
 
-        client._execute_garak = mock_execute
-
-        probes = client.list_available_probes()
-
-        assert len(probes) > 0
+        assert len(probes) == 3
         assert "promptinject.HumanJailbreaks" in probes
 
-    def test_list_available_generators(self, client: Any) -> None:
-        """Test listing available generators."""
-        mock_output = """
-        openai: OpenAI API generator
-        anthropic: Anthropic API generator
-        huggingface: Hugging Face generator
-        """
+    def test_list_available_generators(
+        self, client: Any
+    ) -> None:
+        """Test listing generators using Python API."""
+        mock_generators_list = [
+            {"module_name": "openai.OpenAIGenerator"},
+            {"module_name": "anthropic.AnthropicGenerator"},
+            {"module_name": "huggingface.InferenceAPI"},
+        ]
 
-        def mock_execute(args, stdout, stderr):
-            stdout.write(mock_output)
-            return 0
+        with patch("garak._plugins.enumerate_plugins", return_value=mock_generators_list):
+            with patch("garak._config.loaded", False):
+                with patch("garak._config.load_base_config"):
+                    generators = client.list_available_generators()
 
-        client._execute_garak = mock_execute
-
-        generators = client.list_available_generators()
-
-        assert len(generators) > 0
-        assert "openai" in generators
+        assert len(generators) == 3
+        assert "openai.OpenAIGenerator" in generators
 
 
-class TestGarakClientWrapperConnectionValidation:
-    """Tests for connection validation."""
+class TestGarakClientConnectionValidation:
+    """Tests for connection validation via Python API."""
 
     @pytest.fixture
     def client(self) -> Any:
         """Create a mock client for testing."""
         mock_garak = MagicMock()
-        mock_garak.__version__ = "2.0.0"
+        mock_garak.__version__ = "0.13.3"
+        mock_config = MagicMock()
+        mock_config.loaded = False
+        mock_plugins = MagicMock()
 
         with patch.dict(
-            "sys.modules", {"garak": mock_garak, "garak.cli": MagicMock()}
+            "sys.modules",
+            {
+                "garak": mock_garak,
+                "garak._config": mock_config,
+                "garak._plugins": mock_plugins,
+                "garak.command": MagicMock(),
+                "garak.evaluators": MagicMock(),
+            },
         ):
-            from sci.garak.client import GarakClientWrapper
+            from sci.garak.client import GarakClient
 
-            return GarakClientWrapper(GarakConfig())
+            return GarakClient(GarakConfig())
 
-    def test_validate_connection_success(self, client: Any) -> None:
-        """Test successful connection validation."""
-        client._execute_garak = MagicMock(return_value=0)
+    def test_validate_connection_success(
+        self, client: Any
+    ) -> None:
+        """Test successful connection validation via Python API."""
+        mock_generator = MagicMock()
 
-        with patch.object(client, "_execute_garak", return_value=0):
-            result = client.validate_connection(
-                "openai", {"OPENAI_API_KEY": "test-key"}
-            )
+        with patch("garak._config.loaded", False):
+            with patch("garak._config.load_base_config"):
+                with patch("garak._plugins.load_plugin", return_value=mock_generator):
+                    result = client.validate_connection(
+                        "openai", {"OPENAI_API_KEY": "test-key"}
+                    )
 
         assert result is True
 
-    def test_validate_connection_auth_error(self, client: Any) -> None:
-        """Test connection validation with auth error."""
-
-        def mock_execute(args, stdout, stderr):
-            stderr.write("authentication error: invalid api key")
-            return 1
-
-        client._execute_garak = mock_execute
-
-        with pytest.raises(GarakConnectionError) as exc_info:
-            client.validate_connection("openai", {"OPENAI_API_KEY": "bad-key"})
+    def test_validate_connection_failure(
+        self, client: Any
+    ) -> None:
+        """Test connection validation failure via Python API."""
+        with patch("garak._config.loaded", False):
+            with patch("garak._config.load_base_config"):
+                with patch("garak._plugins.load_plugin", return_value=None):
+                    with pytest.raises(GarakConnectionError) as exc_info:
+                        client.validate_connection(
+                            "openai", {"OPENAI_API_KEY": "bad-key"}
+                        )
 
         assert "CONN" in exc_info.value.error_code
 
 
-class TestGarakClientWrapperErrorHandling:
-    """Tests for error handling and classification."""
+class TestGarakClientScopedEnvVars:
+    """Tests for scoped environment variable context manager."""
 
-    def test_classify_execution_error_auth(self) -> None:
-        """Test error classification for authentication errors."""
-        from sci.garak.client import _classify_execution_error
+    def test_scoped_env_vars_sets_and_restores(self) -> None:
+        """Test that scoped env vars are set and restored properly."""
+        from sci.garak.client import _scoped_env_vars
 
-        error = _classify_execution_error(
-            exit_code=1,
-            stderr="Error: Invalid API key provided",
-            generator_type="openai",
-            model_name="gpt-4",
-            probes=["test.Probe"],
-        )
+        # Store original state
+        original_value = os.environ.get("TEST_VAR")
+        new_var_existed = "NEW_TEST_VAR" in os.environ
 
-        assert isinstance(error, GarakConnectionError)
-        assert "CONN" in error.error_code
+        try:
+            # Set a test variable
+            os.environ["TEST_VAR"] = "original"
 
-    def test_classify_execution_error_rate_limit(self) -> None:
-        """Test error classification for rate limiting."""
-        from sci.garak.client import _classify_execution_error
+            with _scoped_env_vars({"TEST_VAR": "modified", "NEW_TEST_VAR": "new"}):
+                # Inside context, values should be modified
+                assert os.environ["TEST_VAR"] == "modified"
+                assert os.environ["NEW_TEST_VAR"] == "new"
 
-        error = _classify_execution_error(
-            exit_code=1,
-            stderr="Error 429: Rate limit exceeded",
-            generator_type="openai",
-            model_name="gpt-4",
-            probes=["test.Probe"],
-        )
+            # After context, values should be restored
+            assert os.environ["TEST_VAR"] == "original"
+            assert "NEW_TEST_VAR" not in os.environ
 
-        assert isinstance(error, GarakConnectionError)
-        assert "rate limit" in str(error).lower()
+        finally:
+            # Clean up
+            if original_value is None:
+                os.environ.pop("TEST_VAR", None)
+            else:
+                os.environ["TEST_VAR"] = original_value
 
-    def test_classify_execution_error_model_not_found(self) -> None:
-        """Test error classification for model not found."""
-        from sci.garak.client import _classify_execution_error
+            if not new_var_existed:
+                os.environ.pop("NEW_TEST_VAR", None)
 
-        error = _classify_execution_error(
-            exit_code=1,
-            stderr="Model 'gpt-5' not found",
-            generator_type="openai",
-            model_name="gpt-5",
-            probes=["test.Probe"],
-        )
+    def test_scoped_env_vars_handles_exceptions(self) -> None:
+        """Test that env vars are restored even on exception."""
+        from sci.garak.client import _scoped_env_vars
 
-        assert isinstance(error, GarakValidationError)
-        assert "VAL" in error.error_code
+        os.environ["TEST_VAR"] = "original"
 
-    def test_classify_execution_error_generic(self) -> None:
-        """Test error classification for generic errors."""
-        from sci.garak.client import _classify_execution_error
+        try:
+            with _scoped_env_vars({"TEST_VAR": "modified"}):
+                assert os.environ["TEST_VAR"] == "modified"
+                raise ValueError("Test exception")
+        except ValueError:
+            pass
 
-        error = _classify_execution_error(
-            exit_code=1,
-            stderr="Some unknown error occurred",
-            generator_type="openai",
-            model_name="gpt-4",
-            probes=["test.Probe"],
-        )
+        # Should still be restored
+        assert os.environ["TEST_VAR"] == "original"
 
-        assert isinstance(error, GarakExecutionError)
-        assert "EXEC" in error.error_code
-
-
-class TestGarakClientWrapperHelperFunctions:
-    """Tests for helper functions."""
-
-    def test_mask_sensitive_args(self) -> None:
-        """Test masking sensitive CLI arguments."""
-        from sci.garak.client import _mask_sensitive_args
-
-        args = [
-            "--model_type",
-            "openai",
-            "--api_key",
-            "sk-secret-key-12345",
-            "--token",
-            "bearer-token-xyz",
-            "--probes",
-            "test.Probe",
-        ]
-
-        masked = _mask_sensitive_args(args)
-
-        assert "sk-secret-key-12345" not in masked
-        assert "bearer-token-xyz" not in masked
-        assert "openai" in masked
-        assert "test.Probe" in masked
-
-    def test_setup_output_directory(self, tmp_path: Path) -> None:
-        """Test output directory setup."""
-        from sci.garak.client import _setup_output_directory
-
-        output_dir = _setup_output_directory(tmp_path, "test-scan-123")
-
-        assert output_dir.exists()
-        assert "garak_scan" in output_dir.name
-        assert "test-scan-123" in output_dir.name
-
-    def test_validate_garak_output_true(self, tmp_path: Path) -> None:
-        """Test output validation with valid files."""
-        from sci.garak.client import _validate_garak_output
-
-        # Create a report file
-        (tmp_path / "report.json").write_text('{"results": []}')
-
-        assert _validate_garak_output(tmp_path) is True
-
-    def test_validate_garak_output_false_empty(self, tmp_path: Path) -> None:
-        """Test output validation with no files."""
-        from sci.garak.client import _validate_garak_output
-
-        assert _validate_garak_output(tmp_path) is False
-
-    def test_validate_garak_output_false_nonexistent(self) -> None:
-        """Test output validation with nonexistent directory."""
-        from sci.garak.client import _validate_garak_output
-
-        assert _validate_garak_output(Path("/nonexistent/path")) is False
+        # Clean up
+        os.environ.pop("TEST_VAR", None)
 
 
 if __name__ == "__main__":

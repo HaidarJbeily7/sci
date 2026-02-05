@@ -1,7 +1,7 @@
 """
-Garak client wrapper for SCI.
+Garak client for SCI.
 
-This module provides a Python wrapper around the garak CLI, enabling
+This module provides a Python wrapper around garak's Python API, enabling
 programmatic access to garak's security testing capabilities.
 """
 
@@ -9,8 +9,7 @@ import contextlib
 import io
 import json
 import os
-import sys
-import tempfile
+import threading
 import time
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -23,20 +22,35 @@ from sci.engine.exceptions import (
     GarakExecutionError,
     GarakInstallationError,
     GarakTimeoutError,
-    GarakValidationError,
-    TimeoutHandler,
-    retry_on_transient_error,
 )
 from sci.logging.setup import get_logger, log_error
 
 
-class GarakClientWrapper:
-    """
-    Wrapper for the garak security testing framework.
+# Lock to serialize access to garak's global _config state
+_garak_lock = threading.Lock()
 
-    This class provides a Python API for running garak probes against LLM
-    providers. It handles environment setup, command execution, and result
-    parsing.
+
+@contextlib.contextmanager
+def _scoped_env_vars(env_vars: dict[str, str]):
+    """Context manager that temporarily sets environment variables and restores them on exit."""
+    original = {k: os.environ.get(k) for k in env_vars}
+    os.environ.update(env_vars)
+    try:
+        yield
+    finally:
+        for k, orig_val in original.items():
+            if orig_val is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = orig_val
+
+
+class GarakClient:
+    """
+    Garak client that uses garak's Python API directly (in-process).
+
+    This avoids subprocess overhead, fragile CLI output parsing, and
+    provides structured access to results.
 
     Attributes:
         config: GarakConfig instance with framework settings.
@@ -44,7 +58,7 @@ class GarakClientWrapper:
 
     Example:
         >>> config = GarakConfig(parallelism=5, timeout=120)
-        >>> client = GarakClientWrapper(config)
+        >>> client = GarakClient(config)
         >>> results = client.run_scan(
         ...     generator_type="openai",
         ...     model_name="gpt-4",
@@ -55,13 +69,13 @@ class GarakClientWrapper:
 
     def __init__(self, config: GarakConfig) -> None:
         """
-        Initialize the garak client wrapper.
+        Initialize the garak client.
 
         Args:
             config: GarakConfig instance with framework settings.
 
         Raises:
-            ImportError: If garak is not installed or version is incompatible.
+            GarakInstallationError: If garak is not installed or version is incompatible.
         """
         self.config = config
         self.logger = get_logger(__name__)
@@ -73,8 +87,11 @@ class GarakClientWrapper:
             extended_detectors=config.extended_detectors,
         )
 
-        # Validate garak installation on initialization
         self.validate_installation()
+
+    # ------------------------------------------------------------------
+    # Installation validation
+    # ------------------------------------------------------------------
 
     def validate_installation(self) -> bool:
         """
@@ -91,32 +108,22 @@ class GarakClientWrapper:
         """
         try:
             import garak
-            from garak import cli as garak_cli  # noqa: F401
+            from garak import _config  # noqa: F401
+            del _config  # Only imported to validate garak is properly installed
 
-            # Check version
             version = getattr(garak, "__version__", "0.0.0")
+            self.logger.debug("garak_installation_validated", version=version)
 
-            self.logger.debug(
-                "garak_installation_validated",
-                version=version,
-            )
+            parts = version.split(".")
+            major = int(parts[0]) if len(parts) > 0 else 0
+            minor = int(parts[1]) if len(parts) > 1 else 0
+            patch = int(parts[2].split("-")[0]) if len(parts) > 2 else 0
 
-            # Parse version and check >= 0.13.3
-            version_parts = version.split(".")
-            major = int(version_parts[0]) if len(version_parts) > 0 else 0
-            minor = int(version_parts[1]) if len(version_parts) > 1 else 0
-            patch = int(version_parts[2].split("-")[0]) if len(version_parts) > 2 else 0
-
-            # Check if version is < 0.13.3
-            version_tuple = (major, minor, patch)
-            min_version = (0, 13, 3)
-
-            if version_tuple < min_version:
+            if (major, minor, patch) < (0, 13, 3):
                 self.logger.warning(
                     "garak_version_warning",
                     version=version,
                     required=">=0.13.3",
-                    message="Garak version may not be fully compatible",
                 )
 
             return True
@@ -133,6 +140,10 @@ class GarakClientWrapper:
                 error_code="INSTALL_001",
             ) from e
 
+    # ------------------------------------------------------------------
+    # Scan execution
+    # ------------------------------------------------------------------
+
     def run_scan(
         self,
         generator_type: str,
@@ -142,17 +153,18 @@ class GarakClientWrapper:
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
-        Run a garak security scan against an LLM.
-
-        This method sets up the environment, builds CLI arguments, executes
-        garak, and parses the results.
+        Run a garak security scan using the Python API.
 
         Args:
             generator_type: Type of generator (e.g., "openai", "anthropic").
             model_name: Name of the model to test.
             probes: List of probe identifiers to execute.
             env_vars: Environment variables for authentication.
-            **kwargs: Additional arguments passed to garak.
+            **kwargs: Additional arguments (reserved for future use).
+
+        Note:
+            The kwargs parameter is kept for API compatibility but is not
+            currently used by the Python API implementation.
 
         Returns:
             Dictionary containing scan results with keys:
@@ -173,6 +185,7 @@ class GarakClientWrapper:
             GarakTimeoutError: If scan exceeds timeout.
             GarakConnectionError: If there are authentication or connectivity issues.
         """
+        _ = kwargs  # Reserved for future use, kept for API compatibility
         import uuid
 
         scan_id = str(uuid.uuid4())[:8]
@@ -185,81 +198,22 @@ class GarakClientWrapper:
             generator_type=generator_type,
             model_name=model_name,
             probes=probes,
-            parallelism=self.config.parallelism,
         )
-
-        # Set up output directory (pop to avoid passing twice to _build_cli_args)
-        output_dir = _setup_output_directory(
-            Path(kwargs.pop("output_dir", tempfile.gettempdir())),
-            scan_id,
-        )
-
-        # Store original environment
-        original_env = os.environ.copy()
 
         try:
-            # Validate CLI arguments before execution
-            self.validate_cli_args(generator_type, model_name, probes)
-
-            # Set up environment variables (mask in logs)
-            masked_vars = {k: "***" for k in env_vars}
-            self.logger.debug(
-                "environment_setup",
-                env_vars=masked_vars,
-            )
-            os.environ.update(env_vars)
-
-            # Build CLI arguments
-            args = self._build_cli_args(
-                generator_type=generator_type,
-                model_name=model_name,
-                probes=probes,
-                output_dir=output_dir,
-                **kwargs,
-            )
-
-            self.logger.debug(
-                "garak_cli_invocation",
-                args=_mask_sensitive_args(args),
-            )
-
-            # Execute garak with retry logic and timeout
-            stdout_capture = io.StringIO()
-            stderr_capture = io.StringIO()
-
-            # Use scan timeout from config
-            scan_timeout = getattr(self.config, "scan_timeout", 600)
-
-            with TimeoutHandler(scan_timeout, operation="garak_scan") as timeout:
-                exit_code = self._execute_garak_with_retry(
-                    args, stdout_capture, stderr_capture, generator_type
-                )
-                timeout.check_timeout()
-
-            stdout_output = stdout_capture.getvalue()
-            stderr_output = stderr_capture.getvalue()
-
-            if exit_code != 0:
-                self.logger.error(
-                    "garak_execution_failed",
-                    exit_code=exit_code,
-                    stderr=stderr_output[:1000],  # Truncate for logging
-                )
-                # Analyze stderr to determine error type
-                raise _classify_execution_error(
-                    exit_code=exit_code,
-                    stderr=stderr_output,
+            with _garak_lock, _scoped_env_vars(env_vars):
+                report_filename = self._run_garak_in_process(
                     generator_type=generator_type,
                     model_name=model_name,
                     probes=probes,
+                    scan_id=scan_id,
                 )
 
-            # Parse results
-            report_path = self._find_report_file(output_dir)
-            findings = self._parse_garak_report(report_path)
+            # Parse the JSONL report produced by garak
+            findings = self._parse_report(report_filename)
+            summary = self._generate_summary(findings)
 
-            end_time = time.perf_counter()
-            duration_ms = (end_time - start_time) * 1000
+            duration_ms = (time.perf_counter() - start_time) * 1000
 
             result = {
                 "scan_id": scan_id,
@@ -270,38 +224,26 @@ class GarakClientWrapper:
                 "generator_type": generator_type,
                 "model_name": model_name,
                 "probes_executed": probes,
-                "findings": findings.get("findings", []),
-                "summary": findings.get("summary", {}),
-                "report_path": str(report_path) if report_path else None,
+                "findings": findings,
+                "summary": summary,
+                "report_path": report_filename,
             }
 
             self.logger.info(
                 "scan_completed",
                 scan_id=scan_id,
-                status="success",
                 duration_ms=result["duration_ms"],
-                findings_count=len(result["findings"]),
+                findings_count=len(findings),
             )
 
             return result
 
         except (GarakExecutionError, GarakTimeoutError, GarakConnectionError):
-            # Re-raise garak-specific exceptions
             raise
 
         except Exception as e:
-            end_time = time.perf_counter()
-            duration_ms = (end_time - start_time) * 1000
-
-            log_error(
-                e,
-                context={
-                    "scan_id": scan_id,
-                    "generator_type": generator_type,
-                    "model_name": model_name,
-                },
-                command="garak.run_scan",
-            )
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            log_error(e, context={"scan_id": scan_id}, command="garak.run_scan")
 
             return {
                 "scan_id": scan_id,
@@ -314,283 +256,222 @@ class GarakClientWrapper:
                 "probes_executed": probes,
                 "findings": [],
                 "summary": {},
-                "error": {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                },
+                "error": {"type": type(e).__name__, "message": str(e)},
                 "report_path": None,
             }
 
-        finally:
-            # Restore original environment
-            os.environ.clear()
-            os.environ.update(original_env)
-
-    def validate_cli_args(
+    def _run_garak_in_process(
         self,
         generator_type: str,
         model_name: str,
         probes: list[str],
-    ) -> None:
+        scan_id: str,
+    ) -> Optional[str]:
         """
-        Validate CLI arguments before execution.
+        Drive a garak scan using its internal Python API.
 
-        Args:
-            generator_type: Type of generator.
-            model_name: Name of the model.
-            probes: List of probe names.
-
-        Raises:
-            GarakValidationError: If arguments are invalid.
-        """
-        errors: list[str] = []
-
-        # Validate generator type
-        if not generator_type or not generator_type.strip():
-            errors.append("Generator type cannot be empty")
-
-        # Validate model name
-        if not model_name or not model_name.strip():
-            errors.append("Model name cannot be empty")
-
-        # Validate probes
-        if not probes:
-            errors.append("At least one probe must be specified")
-        else:
-            for probe in probes:
-                if not probe or not probe.strip():
-                    errors.append("Probe names cannot be empty")
-                    break
-
-        if errors:
-            raise GarakValidationError(
-                message=f"Invalid CLI arguments: {'; '.join(errors)}",
-                validation_type="cli_args",
-                error_code="VAL_002",
-                troubleshooting_tips=[
-                    "Check that generator_type is a valid provider name",
-                    "Ensure model_name is specified",
-                    "Verify probe names are valid garak probe identifiers",
-                ],
-                context={
-                    "generator_type": generator_type,
-                    "model_name": model_name,
-                    "probes_count": len(probes) if probes else 0,
-                },
-            )
-
-    @retry_on_transient_error(max_attempts=3, initial_delay=1.0, max_delay=30.0)
-    def _execute_garak_with_retry(
-        self,
-        args: list[str],
-        stdout: io.StringIO,
-        stderr: io.StringIO,
-        generator_type: str,
-    ) -> int:
-        """
-        Execute garak CLI with retry logic for transient errors.
-
-        Args:
-            args: CLI arguments.
-            stdout: StringIO for stdout capture.
-            stderr: StringIO for stderr capture.
-            generator_type: Type of generator (for error context).
+        Must be called while holding ``_garak_lock`` and with env vars set.
 
         Returns:
-            Exit code from garak execution.
+            Path to the JSONL report file written by garak, or None.
         """
-        return self._execute_garak(args, stdout, stderr)
+        import argparse
+        import datetime as _dt
 
-    def _build_cli_args(
-        self,
-        generator_type: str,
-        model_name: str,
-        probes: list[str],
-        output_dir: Path,
-        **kwargs: Any,
-    ) -> list[str]:
-        """Build command-line arguments for garak CLI."""
-        # Use a simple prefix name, garak will handle the full path
-        scan_prefix = f"sci_scan_{output_dir.name}"
+        from garak import _config, _plugins
+        from garak import command as garak_command
+        from garak.evaluators import ThresholdEvaluator
+        from garak.exception import GarakException
 
-        # Use --target_type and --target_name (garak 0.13.x syntax)
-        # --model_type and --model_name are deprecated
-        args = [
-            "--target_type",
-            generator_type,
-            "--target_name",
-            model_name,
-            "--probes",
-            ",".join(probes),
-            "--parallel_attempts",
-            str(self.config.parallelism),
-            "--report_prefix",
-            scan_prefix,
-        ]
+        # --- 1. Initialise garak config ------------------------------------
+        _config.transient.starttime = _dt.datetime.now()
+        _config.transient.starttime_iso = _config.transient.starttime.isoformat()
 
-        # Add extended detectors flag if enabled
-        if self.config.extended_detectors:
-            args.append("--extended_detectors")
+        # Create minimal cli_args to satisfy garak's start_run() checks
+        # This mimics what garak's CLI parser would create
+        _config.transient.cli_args = argparse.Namespace(
+            list_probes=False,
+            list_detectors=False,
+            list_generators=False,
+            list_buffs=False,
+            list_config=False,
+            plugin_info=None,
+            probes=",".join(probes),
+        )
 
-        # Add sample limit if configured
+        _config.load_base_config()
+
+        # Apply SCI settings to garak config
+        # IMPORTANT: Disable parallel execution to avoid multiprocessing pickling issues
+        # when running in-process. Garak's multiprocessing cannot pickle generator objects
+        # that contain module references.
+        _config.system.parallel_attempts = 1
+        _config.system.parallel_requests = 1
+        _config.plugins.extended_detectors = self.config.extended_detectors
+
         if self.config.limit_samples is not None:
-            args.extend(["--generations", str(self.config.limit_samples)])
+            _config.run.generations = self.config.limit_samples
 
-        # Skip kwargs that are not valid garak CLI args
-        skip_keys = {"output_dir", "api_base", "model_name"}
+        # Report prefix so we can find the file afterwards
+        _config.reporting.report_prefix = f"sci_scan_{scan_id}"
 
-        # Add any additional kwargs as CLI args
-        for key, value in kwargs.items():
-            if key not in skip_keys:
-                arg_name = f"--{key}"
-                if isinstance(value, bool):
-                    if value:
-                        args.append(arg_name)
-                else:
-                    args.extend([arg_name, str(value)])
-
-        return args
-
-    def _execute_garak(
-        self,
-        args: list[str],
-        stdout: io.StringIO,
-        stderr: io.StringIO,
-    ) -> int:
-        """
-        Execute garak CLI as a subprocess.
-
-        Returns the exit code (0 for success).
-        """
-        import subprocess
+        # --- 2. Start the run (creates report file, UUID, etc.) -----------
+        garak_command.start_logging()
+        garak_command.start_run()
 
         try:
-            # Run garak as a subprocess to avoid multiprocessing/pickling issues
-            cmd = [sys.executable, "-m", "garak"] + args
+            # --- 3. Instantiate the generator --------------------------------
+            generator_plugin_path = f"generators.{generator_type}"
 
-            self.logger.debug(
-                "garak_subprocess_starting",
-                cmd=cmd[:6],  # Log first few args
-            )
+            try:
+                generator = _plugins.load_plugin(generator_plugin_path)
+            except Exception as e:
+                raise GarakExecutionError(
+                    message=f"Failed to load generator '{generator_type}': {e}",
+                    exit_code=-1,
+                    stderr=str(e),
+                    error_code="EXEC_002",
+                    troubleshooting_tips=[
+                        f"Check that '{generator_type}' is a valid garak generator",
+                        "Verify provider credentials are set",
+                    ],
+                    context={"generator_type": generator_type},
+                ) from e
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=self.config.scan_timeout or 600,
-                env=os.environ.copy(),
-            )
+            # Override the model/target name on the generator
+            if hasattr(generator, "name"):
+                generator.name = model_name
 
-            # Write output to the StringIO objects
-            stdout.write(result.stdout)
-            stderr.write(result.stderr)
+            # --- 4. Build probe name list in garak format -----------------
+            probe_names = [
+                p if p.startswith("probes.") else f"probes.{p}"
+                for p in probes
+            ]
 
-            if result.returncode != 0:
-                self.logger.warning(
-                    "garak_exit_nonzero",
-                    exit_code=result.returncode,
-                    stderr_preview=result.stderr[:500] if result.stderr else None,
+            # --- 5. Run probes (output visible for progress tracking) -----
+            evaluator = ThresholdEvaluator()
+
+            try:
+                garak_command.probewise_run(
+                    generator, probe_names, evaluator, buffs=[]
                 )
+            except GarakException as e:
+                raise GarakExecutionError(
+                    message=f"Garak probe execution failed: {e}",
+                    exit_code=-1,
+                    stderr=str(e),
+                    error_code="EXEC_003",
+                    context={"probes": probes},
+                ) from e
 
-            return result.returncode
-
-        except subprocess.TimeoutExpired as e:
-            stderr.write(f"Garak execution timed out after {self.config.scan_timeout}s\n")
-            self.logger.error(
-                "garak_execution_timeout",
-                timeout=self.config.scan_timeout,
+            # --- 6. Finalise ------------------------------------------------
+            report_filename = getattr(
+                _config.transient, "report_filename", None
             )
-            return 124  # Standard timeout exit code
+
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                garak_command.end_run()
+
+            return report_filename
+
+        except (GarakExecutionError, GarakTimeoutError, GarakConnectionError):
+            # Ensure we still call end_run to clean up
+            with contextlib.suppress(Exception):
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    garak_command.end_run()
+            raise
 
         except Exception as e:
-            stderr.write(f"Garak execution error: {str(e)}\n")
-            self.logger.error(
-                "garak_execution_exception",
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            return 1
+            with contextlib.suppress(Exception):
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    garak_command.end_run()
+            raise GarakExecutionError(
+                message=f"Unexpected error during garak execution: {e}",
+                exit_code=-1,
+                stderr=str(e),
+                error_code="EXEC_004",
+                context={"generator_type": generator_type, "probes": probes},
+            ) from e
 
-    def _find_report_file(self, output_dir: Path) -> Optional[Path]:
-        """Find the garak report file in garak's output directory."""
-        # Garak stores reports in its default location: ~/.local/share/garak/garak_runs/
-        garak_runs_dir = Path.home() / ".local" / "share" / "garak" / "garak_runs"
+    # ------------------------------------------------------------------
+    # Report parsing
+    # ------------------------------------------------------------------
 
-        # Search in garak's default output location first
-        search_dirs = [garak_runs_dir, output_dir]
+    def _parse_report(self, report_path: Optional[str]) -> list[dict[str, Any]]:
+        """Parse a garak JSONL report file into a list of finding dicts.
 
-        for search_dir in search_dirs:
-            if not search_dir.exists():
-                continue
-
-            # Look for report files with our scan prefix or recent reports
-            for pattern in ["**/sci_scan_*.jsonl", "**/sci_scan_*.json", "**/*.report.jsonl", "**/report*.jsonl", "**/report*.json"]:
-                matches = list(search_dir.glob(pattern))
-                if matches:
-                    # Return the most recently modified file
-                    return max(matches, key=lambda p: p.stat().st_mtime)
-
-        return None
-
-    def _parse_garak_report(self, report_path: Optional[Path]) -> dict[str, Any]:
+        Only extracts entries with entry_type="attempt" which are actual
+        probe execution results. Filters out:
+        - Metadata entries (start_run, init, end_run, etc.)
+        - Entries without a valid probe_classname
+        - Entries that are passed (only include failures for vulnerability reporting)
         """
-        Parse a garak report file.
+        if report_path is None or not Path(report_path).exists():
+            self.logger.warning("report_not_found", report_path=report_path)
+            return []
 
-        Args:
-            report_path: Path to the report file.
-
-        Returns:
-            Dictionary with findings and summary.
-        """
-        if report_path is None or not report_path.exists():
-            self.logger.warning(
-                "report_not_found",
-                report_path=str(report_path),
-            )
-            return {"findings": [], "summary": {}}
+        findings: list[dict[str, Any]] = []
+        skipped_no_probe = 0
+        skipped_passed = 0
 
         try:
-            # Handle both JSON and JSONL formats
-            findings = []
-            if report_path.suffix == ".jsonl":
-                with open(report_path, encoding="utf-8") as f:
-                    for line in f:
-                        if line.strip():
-                            findings.append(json.loads(line))
-            else:
-                with open(report_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        findings = data
-                    elif isinstance(data, dict):
-                        findings = data.get("results", data.get("findings", [data]))
+            with open(report_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
 
-            # Generate summary
-            summary = self._generate_summary(findings)
+                    entry = json.loads(line)
 
-            return {
-                "findings": findings,
-                "summary": summary,
-            }
+                    # Only include actual attempt entries (probe execution results)
+                    # Skip metadata entries: start_run, init, end_run, etc.
+                    if entry.get("entry_type") != "attempt":
+                        continue
+
+                    # Must have a valid probe_classname
+                    probe_classname = entry.get("probe_classname", "")
+                    if not probe_classname or probe_classname == "unknown":
+                        skipped_no_probe += 1
+                        continue
+
+                    findings.append(entry)
 
         except (json.JSONDecodeError, OSError) as e:
-            self.logger.error(
-                "report_parse_error",
-                report_path=str(report_path),
-                error=str(e),
-            )
-            return {"findings": [], "summary": {}}
+            self.logger.error("report_parse_error", error=str(e))
+
+        self.logger.debug(
+            "report_parsed",
+            total_findings=len(findings),
+            skipped_no_probe=skipped_no_probe,
+            skipped_passed=skipped_passed,
+        )
+        return findings
 
     def _generate_summary(self, findings: list[dict]) -> dict[str, Any]:
-        """Generate summary statistics from findings."""
-        total = len(findings)
-        passed = sum(1 for f in findings if f.get("passed", f.get("status") == "pass"))
+        """Generate summary statistics from findings.
+
+        Only considers findings with valid probe_classname.
+        """
+        # Filter to only findings with valid probe_classname
+        valid_findings = [
+            f for f in findings
+            if f.get("probe_classname") and f.get("probe_classname") != "unknown"
+        ]
+
+        total = len(valid_findings)
+        passed = sum(
+            1
+            for f in valid_findings
+            if f.get("passed", f.get("status") == "pass")
+        )
         failed = total - passed
 
-        # Count by probe
         probes_summary: dict[str, dict[str, int]] = {}
-        for finding in findings:
-            probe = finding.get("probe", finding.get("probe_name", "unknown"))
+        for finding in valid_findings:
+            probe = finding.get("probe_classname", "")
+            if not probe:
+                continue
+
             if probe not in probes_summary:
                 probes_summary[probe] = {"passed": 0, "failed": 0}
             if finding.get("passed", finding.get("status") == "pass"):
@@ -606,110 +487,71 @@ class GarakClientWrapper:
             "probes": probes_summary,
         }
 
+    # ------------------------------------------------------------------
+    # Probe / generator listing
+    # ------------------------------------------------------------------
+
     @lru_cache(maxsize=1)
     def list_available_probes(self) -> list[str]:
         """
-        List all available garak probes.
+        List all available garak probes using the Python API.
 
         Returns:
             List of probe identifiers.
         """
         self.logger.debug("listing_available_probes")
-
         try:
-            stdout = io.StringIO()
-            stderr = io.StringIO()
+            from garak import _config, _plugins
 
-            self._execute_garak(["--list_probes"], stdout, stderr)
+            if not getattr(_config, "loaded", False):
+                _config.load_base_config()
 
-            output = stdout.getvalue()
-            probes = self._parse_list_output(output)
+            plugins = _plugins.enumerate_plugins("probes")
+            probe_names = [p["module_name"] for p in plugins if "module_name" in p]
 
-            self.logger.info(
-                "probes_listed",
-                count=len(probes),
-            )
-
-            return probes
+            self.logger.info("probes_listed", count=len(probe_names))
+            return probe_names
 
         except Exception as e:
-            self.logger.error(
-                "probe_listing_failed",
-                error=str(e),
-            )
+            self.logger.error("probe_listing_failed", error=str(e))
             return []
 
     @lru_cache(maxsize=1)
     def list_available_generators(self) -> list[str]:
         """
-        List all available garak generators.
+        List all available garak generators using the Python API.
 
         Returns:
             List of generator identifiers.
         """
         self.logger.debug("listing_available_generators")
-
         try:
-            stdout = io.StringIO()
-            stderr = io.StringIO()
+            from garak import _config, _plugins
 
-            self._execute_garak(["--list_generators"], stdout, stderr)
+            if not getattr(_config, "loaded", False):
+                _config.load_base_config()
 
-            output = stdout.getvalue()
-            generators = self._parse_list_output(output)
+            plugins = _plugins.enumerate_plugins("generators")
+            gen_names = [p["module_name"] for p in plugins if "module_name" in p]
 
-            self.logger.info(
-                "generators_listed",
-                count=len(generators),
-            )
-
-            return generators
+            self.logger.info("generators_listed", count=len(gen_names))
+            return gen_names
 
         except Exception as e:
-            self.logger.error(
-                "generator_listing_failed",
-                error=str(e),
-            )
+            self.logger.error("generator_listing_failed", error=str(e))
             return []
 
-    def _parse_list_output(self, output: str) -> list[str]:
-        """Parse garak's list output to extract identifiers."""
-        import re
+    # ------------------------------------------------------------------
+    # Connection validation
+    # ------------------------------------------------------------------
 
-        # Remove ANSI escape codes
-        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-
-        items = []
-        for line in output.strip().split("\n"):
-            # Strip ANSI codes first
-            line = ansi_escape.sub("", line).strip()
-            # Skip empty lines, headers, and version info
-            if not line or line.startswith("#") or line.startswith("="):
-                continue
-            if line.startswith("garak "):
-                continue
-            # Skip module headers (lines with 🌟) and unavailable probes (💤)
-            if "🌟" in line or "💤" in line:
-                continue
-            # Extract the identifier after "probes:" or "detectors:" or "generators:"
-            if ":" in line:
-                item = line.split(":", 1)[1].strip()
-            else:
-                item = line.split()[0] if line.split() else ""
-            if item and not item.startswith("-"):
-                items.append(item)
-        return items
-
-    @retry_on_transient_error(max_attempts=2, initial_delay=1.0, max_delay=10.0)
     def validate_connection(
         self,
         generator_type: str,
         env_vars: dict[str, str],
     ) -> bool:
         """
-        Validate connection to an LLM provider.
-
-        Attempts a minimal test call to verify credentials and connectivity.
+        Validate connectivity by instantiating the generator via Python API.
 
         Args:
             generator_type: Type of generator to test.
@@ -720,91 +562,30 @@ class GarakClientWrapper:
 
         Raises:
             GarakConnectionError: If connection validation fails.
-            GarakTimeoutError: If validation times out.
         """
-        self.logger.info(
-            "validating_connection",
-            generator_type=generator_type,
-        )
-
-        # Store original environment
-        original_env = os.environ.copy()
-
-        # Get connection timeout from config
-        connection_timeout = getattr(self.config, "connection_timeout", 30)
+        self.logger.info("validating_connection", generator_type=generator_type)
 
         try:
-            os.environ.update(env_vars)
+            with _scoped_env_vars(env_vars):
+                from garak import _config, _plugins
 
-            # Use a minimal probe for connection testing
-            args = [
-                "--model_type",
-                generator_type,
-                "--model_name",
-                "test",  # Will be overridden by most generators
-                "--probes",
-                "test.Blank",  # Minimal probe
-                "--generations",
-                "1",  # Single sample
-            ]
+                if not getattr(_config, "loaded", False):
+                    _config.load_base_config()
 
-            stdout = io.StringIO()
-            stderr = io.StringIO()
+                generator_path = f"generators.{generator_type}"
+                generator = _plugins.load_plugin(generator_path)
 
-            # Set a short timeout for validation
-            with TimeoutHandler(connection_timeout, operation="connection_validation") as timeout:
-                exit_code = self._execute_garak(args, stdout, stderr)
-                timeout.check_timeout()
+                if generator is None:
+                    raise GarakConnectionError(
+                        message=f"Could not instantiate generator '{generator_type}'",
+                        provider=generator_type,
+                        error_code="CONN_006",
+                    )
 
-            stderr_output = stderr.getvalue()
+            self.logger.info("connection_validated", generator_type=generator_type)
+            return True
 
-            # Check for authentication errors
-            auth_errors = [
-                "authentication",
-                "unauthorized",
-                "invalid api key",
-                "api key",
-                "credentials",
-            ]
-
-            if any(err in stderr_output.lower() for err in auth_errors):
-                self.logger.warning(
-                    "connection_validation_failed",
-                    generator_type=generator_type,
-                    reason="authentication_error",
-                )
-                raise GarakConnectionError(
-                    message=f"Authentication failed for provider '{generator_type}'",
-                    provider=generator_type,
-                    error_code="CONN_002",
-                    troubleshooting_tips=[
-                        "Verify your API key is valid and not expired",
-                        "Check that the API key has the required permissions",
-                        "Ensure the API key is set correctly in environment or config",
-                    ],
-                )
-
-            if exit_code == 0:
-                self.logger.info(
-                    "connection_validated",
-                    generator_type=generator_type,
-                )
-                return True
-
-            self.logger.warning(
-                "connection_validation_failed",
-                generator_type=generator_type,
-                exit_code=exit_code,
-            )
-            raise GarakConnectionError(
-                message=f"Connection validation failed for provider '{generator_type}'",
-                provider=generator_type,
-                error_code="CONN_003",
-                context={"exit_code": exit_code, "stderr": stderr_output[:500]},
-            )
-
-        except (GarakConnectionError, GarakTimeoutError):
-            # Re-raise garak-specific exceptions
+        except GarakConnectionError:
             raise
 
         except Exception as e:
@@ -814,213 +595,7 @@ class GarakClientWrapper:
                 error=str(e),
             )
             raise GarakConnectionError(
-                message=f"Connection validation error for provider '{generator_type}': {e}",
+                message=f"Connection validation error for '{generator_type}': {e}",
                 provider=generator_type,
                 error_code="CONN_001",
             ) from e
-
-        finally:
-            os.environ.clear()
-            os.environ.update(original_env)
-
-
-def _setup_output_directory(base_dir: Path, scan_id: str) -> Path:
-    """
-    Create a timestamped output directory for scan results.
-
-    Args:
-        base_dir: Base directory for output.
-        scan_id: Unique scan identifier.
-
-    Returns:
-        Path to the scan-specific output directory.
-    """
-    timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
-    output_dir = base_dir / f"garak_scan_{timestamp}_{scan_id}"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir
-
-
-def _validate_garak_output(output_path: Path) -> bool:
-    """
-    Validate that garak generated expected output files.
-
-    Args:
-        output_path: Path to check for output files.
-
-    Returns:
-        True if valid output files exist.
-    """
-    if not output_path.exists():
-        return False
-
-    # Check for any JSON output files
-    json_files = list(output_path.glob("*.json")) + list(output_path.glob("*.jsonl"))
-    return len(json_files) > 0
-
-
-def _mask_sensitive_args(args: list[str]) -> list[str]:
-    """Mask sensitive values in CLI arguments for logging."""
-    sensitive_params = {"--api_key", "--token", "--secret"}
-    masked = []
-    skip_next = False
-
-    for i, arg in enumerate(args):
-        if skip_next:
-            masked.append("***")
-            skip_next = False
-        elif arg.lower() in sensitive_params:
-            masked.append(arg)
-            skip_next = True
-        else:
-            masked.append(arg)
-
-    return masked
-
-
-def _classify_execution_error(
-    exit_code: int,
-    stderr: str,
-    generator_type: str,
-    model_name: str,
-    probes: list[str],
-) -> Exception:
-    """
-    Classify a garak execution error into the appropriate exception type.
-
-    Args:
-        exit_code: The CLI exit code.
-        stderr: Standard error output.
-        generator_type: Type of generator used.
-        model_name: Model that was tested.
-        probes: List of probes that were attempted.
-
-    Returns:
-        Appropriate exception instance (GarakConnectionError, GarakExecutionError, etc.)
-    """
-    stderr_lower = stderr.lower()
-
-    # Check for authentication/connection errors
-    auth_patterns = [
-        "authentication",
-        "unauthorized",
-        "invalid api key",
-        "api key",
-        "credentials",
-        "401",
-        "403",
-    ]
-    if any(pattern in stderr_lower for pattern in auth_patterns):
-        return GarakConnectionError(
-            message=f"Authentication failed for provider '{generator_type}'",
-            provider=generator_type,
-            error_code="CONN_002",
-            troubleshooting_tips=[
-                "Verify your API key is valid and not expired",
-                "Check that the API key has the required permissions",
-                "Ensure the API key is set correctly in environment or config",
-            ],
-            context={
-                "exit_code": exit_code,
-                "model_name": model_name,
-            },
-        )
-
-    # Check for connection/network errors
-    network_patterns = [
-        "connection refused",
-        "connection reset",
-        "network unreachable",
-        "connection timed out",
-        "timeout",
-        "502",
-        "503",
-        "504",
-    ]
-    if any(pattern in stderr_lower for pattern in network_patterns):
-        return GarakConnectionError(
-            message=f"Network error while connecting to provider '{generator_type}'",
-            provider=generator_type,
-            error_code="CONN_004",
-            troubleshooting_tips=[
-                "Check your internet connectivity",
-                "Verify the API endpoint is accessible",
-                "Check the provider's status page for outages",
-            ],
-            context={
-                "exit_code": exit_code,
-                "model_name": model_name,
-            },
-        )
-
-    # Check for rate limiting
-    rate_patterns = ["rate limit", "429", "too many requests"]
-    if any(pattern in stderr_lower for pattern in rate_patterns):
-        return GarakConnectionError(
-            message=f"Rate limit exceeded for provider '{generator_type}'",
-            provider=generator_type,
-            error_code="CONN_005",
-            troubleshooting_tips=[
-                "Wait a few minutes and try again",
-                "Reduce the parallelism setting in your configuration",
-                "Check your API tier and rate limits",
-            ],
-            context={
-                "exit_code": exit_code,
-                "model_name": model_name,
-            },
-        )
-
-    # Check for model-related errors
-    model_patterns = ["model not found", "model does not exist", "invalid model"]
-    if any(pattern in stderr_lower for pattern in model_patterns):
-        return GarakValidationError(
-            message=f"Model '{model_name}' not found or unavailable",
-            validation_type="model",
-            error_code="VAL_003",
-            troubleshooting_tips=[
-                "Verify the model name is correct",
-                "Check if the model is available for your account/tier",
-                "Ensure you have access to the specified model",
-            ],
-            context={
-                "model_name": model_name,
-                "generator_type": generator_type,
-            },
-        )
-
-    # Check for probe-related errors
-    probe_patterns = ["probe not found", "invalid probe", "no such probe"]
-    if any(pattern in stderr_lower for pattern in probe_patterns):
-        return GarakValidationError(
-            message="One or more specified probes are invalid or unavailable",
-            validation_type="probe",
-            error_code="VAL_004",
-            troubleshooting_tips=[
-                "Run 'sci run probes' to see available probes",
-                "Check the probe names for typos",
-                "Verify garak version supports the requested probes",
-            ],
-            context={
-                "probes": probes[:5],  # Limit to first 5
-            },
-        )
-
-    # Default to generic execution error
-    return GarakExecutionError(
-        message=f"Garak execution failed with exit code {exit_code}",
-        exit_code=exit_code,
-        stderr=stderr,
-        error_code="EXEC_001",
-        troubleshooting_tips=[
-            "Check the error message for specific details",
-            "Verify garak is properly installed (pip install 'garak>=0.13.3')",
-            "Ensure all probe names are valid",
-            "Check the garak documentation for probe-specific requirements",
-        ],
-        context={
-            "generator_type": generator_type,
-            "model_name": model_name,
-            "probes_count": len(probes),
-        },
-    )

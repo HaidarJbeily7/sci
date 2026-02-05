@@ -21,8 +21,8 @@ from sci.config.models import (
     OutputFormat,
     ProviderConfig,
     SCIConfig,
-    TestProfile,
 )
+from sci.config.models import TestProfile as ProfileModel  # Renamed to avoid pytest collision
 
 
 class TestConfigManager:
@@ -181,7 +181,7 @@ class TestConfigModels:
 
     def test_test_profile_validation(self) -> None:
         """Test TestProfile validation."""
-        profile = TestProfile(
+        profile = ProfileModel(
             name="test_profile",
             description="A test profile",
             probes=["probe1", "probe2"],

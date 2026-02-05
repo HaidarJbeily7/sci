@@ -27,7 +27,7 @@ logging:
 # -----------------------------------------------------------------------------
 output:
   # Directory for test results
-  directory: ./results
+  directory: ./results-4-FEB-2026
 
   # Output format: json, yaml, html
   format: json
@@ -134,7 +134,7 @@ profiles:
     name: minimal
     description: Quick smoke test with essential probes only
     probes:
-      - prompt_injection_basic
+      # - prompt_injection_basic
       - jailbreak_basic
     detectors:
       - toxicity_basic
@@ -219,7 +219,7 @@ providers:
     base_url: https://api.anthropic.com
     timeout: 30
     max_retries: 3
-    model: claude-3-opus-20240229
+    model: claude-sonnet-4-20250514  # claude-3-opus was deprecated Jan 2026
 
   google:
     location: us-central1

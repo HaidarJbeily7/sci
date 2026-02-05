@@ -379,6 +379,40 @@ def get_adapter_for_provider(provider_name: str) -> AdapterFunc:
     return _ADAPTER_REGISTRY[provider_key]
 
 
+def build_garak_generator_config(
+    provider_name: str,
+    config: ProviderConfig,
+) -> dict[str, Any]:
+    """
+    Build a garak-compatible generator configuration dict.
+
+    This is intended for use with the Python API mode where garak's
+    ``_config.plugins`` can be set programmatically instead of through
+    CLI arguments.
+
+    Args:
+        provider_name: Name of the provider (e.g., "openai").
+        config: SCI ProviderConfig for the provider.
+
+    Returns:
+        Dictionary suitable for setting on ``garak._config.plugins.generators``.
+
+    Example:
+        >>> config = ProviderConfig(api_key="sk-...", model="gpt-4")
+        >>> gen_cfg = build_garak_generator_config("openai", config)
+        >>> gen_cfg["generator_type"]
+        'openai.OpenAIGenerator'
+    """
+    adapter = get_adapter_for_provider(provider_name)
+    generator_type, env_vars, additional_params = adapter(config)
+
+    return {
+        "generator_type": generator_type,
+        "env_vars": env_vars,
+        "additional_params": additional_params,
+    }
+
+
 def validate_provider_config(
     provider_name: str,
     config: ProviderConfig,

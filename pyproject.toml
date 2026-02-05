@@ -48,6 +48,7 @@ dependencies = [
     "pyyaml>=6.0",
     "rich>=13.0.0",
     "garak>=0.13.3",
+    "weasyprint>=68.0",
 ]
 
 [project.optional-dependencies]

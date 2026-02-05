@@ -42,7 +42,7 @@ from sci.engine.results import (
     StorageError,
 )
 from sci.garak.adapters import get_adapter_for_provider, validate_provider_config
-from sci.garak.client import GarakClientWrapper
+from sci.garak.client import GarakClient
 from sci.garak.mappings import (
     ComplianceMapper,
     DetectorMapper,
@@ -66,7 +66,7 @@ class GarakEngine:
     - Loading test profiles from configuration
     - Mapping SCI probe/detector names to garak identifiers
     - Adapting provider configurations for authentication
-    - Executing scans via GarakClientWrapper
+    - Executing scans via GarakClient
     - Aggregating and returning results
 
     Attributes:
@@ -114,8 +114,8 @@ class GarakEngine:
         self.config_manager = config_manager
         self.logger = get_logger(__name__)
 
-        # Initialize client and mappers
-        self.client = GarakClientWrapper(config)
+        # Initialize client
+        self.client = GarakClient(config)
         self.probe_mapper = ProbeMapper(config)
         self.detector_mapper = DetectorMapper(config)
         self.compliance_mapper = ComplianceMapper()
