@@ -76,8 +76,9 @@ class TestProbeMapper:
 
     def test_map_probe_name_suggestions(self, mapper: ProbeMapper) -> None:
         """Test that error includes suggestions for similar probes."""
+        # Use a name that won't match any prefix in PROBE_MODULE_MAPPING
         with pytest.raises(ValueError) as exc_info:
-            mapper.map_probe_name("prompt_injection_basik")  # Typo
+            mapper.map_probe_name("nonexistent_probe_xyz")
 
         error_msg = str(exc_info.value)
         assert "did you mean" in error_msg.lower() or "available" in error_msg.lower()

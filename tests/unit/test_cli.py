@@ -43,17 +43,21 @@ class TestMainCLI:
     def test_no_args_shows_help(self) -> None:
         """Test running without arguments shows help."""
         result = runner.invoke(app, [])
-        assert result.exit_code == 0
-        # Should show available commands
-        assert "run" in result.stdout
-        assert "report" in result.stdout
-        assert "config" in result.stdout
+        # Typer with no_args_is_help=True exits with code 0 or 2 depending on version
+        assert result.exit_code in (0, 2)
+        # Should show available commands in help output
+        output = result.output or result.stdout
+        assert "run" in output
+        assert "report" in output
+        assert "config" in output
 
     def test_verbose_and_quiet_mutually_exclusive(self) -> None:
         """Test that --verbose and --quiet cannot be used together."""
         result = runner.invoke(app, ["--verbose", "--quiet", "run", "--help"])
         assert result.exit_code == 1
-        assert "Cannot use --verbose and --quiet together" in result.stdout
+        # Error message may be in stdout or stderr (combined in result.output)
+        output = result.output or result.stdout
+        assert "Cannot use --verbose and --quiet together" in output
 
 
 class TestRunCommand:
@@ -68,7 +72,8 @@ class TestRunCommand:
     def test_run_no_args(self) -> None:
         """Test 'sci run' without arguments shows help."""
         result = runner.invoke(app, ["run"])
-        assert result.exit_code == 0
+        # Typer with no_args_is_help=True exits with code 0 or 2 depending on version
+        assert result.exit_code in (0, 2)
 
     def test_run_dry_run(self) -> None:
         """Test 'sci run --dry-run' shows execution plan."""

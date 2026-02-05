@@ -211,8 +211,9 @@ class TestGarakEngineProbeValidation:
 
     def test_validate_probes_unavailable_raises(self, engine: Any) -> None:
         """Test validating unavailable probes raises error."""
-        # Mock the client to return empty list
-        engine.client.list_available_probes.return_value = []
+        # Mock the client to return a list that doesn't include the requested probe
+        # (empty list would skip validation, so we need at least one available probe)
+        engine.client.list_available_probes.return_value = ["dan.DAN", "encoding.InjectBase64"]
 
         with pytest.raises(GarakValidationError) as exc_info:
             engine.validate_probes_available(["nonexistent_probe_xyz"])

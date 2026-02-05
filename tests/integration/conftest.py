@@ -49,7 +49,7 @@ from tests.fixtures.garak_reports import (
 @pytest.fixture
 def mock_garak_client() -> Generator[MagicMock, None, None]:
     """
-    Fixture providing a mocked GarakClientWrapper.
+    Fixture providing a mocked GarakClient.
 
     The mock is pre-configured with common return values:
     - validate_installation() returns True
@@ -59,9 +59,9 @@ def mock_garak_client() -> Generator[MagicMock, None, None]:
     - validate_connection() returns True
 
     Yields:
-        MagicMock instance configured as GarakClientWrapper.
+        MagicMock instance configured as GarakClient.
     """
-    with patch("sci.garak.client.GarakClientWrapper") as mock_class:
+    with patch("sci.garak.client.GarakClient") as mock_class:
         mock_instance = MagicMock()
 
         # Configure default behaviors

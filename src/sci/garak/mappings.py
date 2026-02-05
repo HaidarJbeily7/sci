@@ -37,7 +37,7 @@ from sci.config.models import GarakConfig, RiskLevel
 from sci.logging.setup import get_logger
 
 if TYPE_CHECKING:
-    from sci.garak.client import GarakClientWrapper
+    from sci.garak.client import GarakClient
 
 
 # =============================================================================
@@ -246,14 +246,14 @@ EU_AI_ACT_MAPPING: dict[str, dict[str, Any]] = {
 # Note: These are the available probes in garak 0.13.x
 DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
     "promptinject": [
-        "promptinject.HijackHateHumans",
-        "promptinject.HijackKillHumans",
-        "promptinject.HijackLongPrompt",
+        "promptinject.HijackHateHumansMini",
+        "promptinject.AutoDAN",
+        "promptinject.HumanJailbreaks",
     ],
     "dan": [
-        "dan.Ablation_Dan_11_0",
-        "dan.AutoDANCached",
-        "dan.DanInTheWild",
+        "dan.DAN",
+        "dan.DUDE",
+        "dan.DANJailbreak",
     ],
     "encoding": [
         "encoding.InjectBase64",
@@ -264,8 +264,6 @@ DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
     "leakreplay": [
         "leakreplay.LiteratureCloze",
         "leakreplay.GuardianCloze",
-        "leakreplay.LiteratureComplete",
-        "leakreplay.GuardianComplete",
     ],
     "malwaregen": [
         "malwaregen.Evasion",
@@ -454,7 +452,7 @@ class ProbeMapper:
         return sorted(all_probes)
 
     def get_module_probes(
-        self, module_name: str, client: GarakClientWrapper
+        self, module_name: str, client: GarakClient
     ) -> list[str]:
         """
         Get all probes from a specific garak module.
@@ -463,7 +461,7 @@ class ProbeMapper:
 
         Args:
             module_name: Garak module name (e.g., "promptinject").
-            client: GarakClientWrapper instance for querying available probes.
+            client: GarakClient instance for querying available probes.
 
         Returns:
             List of probe identifiers from the specified module.
@@ -484,13 +482,13 @@ class ProbeMapper:
 
         return module_probes
 
-    def validate_probe(self, probe_identifier: str, client: GarakClientWrapper) -> bool:
+    def validate_probe(self, probe_identifier: str, client: GarakClient) -> bool:
         """
         Validate that a probe identifier exists in garak.
 
         Args:
             probe_identifier: Garak probe identifier to validate.
-            client: GarakClientWrapper instance for querying available probes.
+            client: GarakClient instance for querying available probes.
 
         Returns:
             True if probe exists, False otherwise.
@@ -842,12 +840,12 @@ class ComplianceMapper:
 # =============================================================================
 
 
-def list_available_probes(client: GarakClientWrapper) -> dict[str, list[str]]:
+def list_available_probes(client: GarakClient) -> dict[str, list[str]]:
     """
     List available garak probes grouped by module.
 
     Args:
-        client: GarakClientWrapper instance.
+        client: GarakClient instance.
 
     Returns:
         Dictionary mapping module names to lists of probe identifiers.
@@ -881,12 +879,12 @@ def list_available_probes(client: GarakClientWrapper) -> dict[str, list[str]]:
 
 
 @lru_cache(maxsize=1)
-def list_available_detectors(client: GarakClientWrapper) -> list[str]:
+def list_available_detectors(client: GarakClient) -> list[str]:
     """
     List available garak detectors.
 
     Args:
-        client: GarakClientWrapper instance.
+        client: GarakClient instance.
 
     Returns:
         List of detector identifiers.
@@ -999,14 +997,14 @@ def get_detector_description(detector_identifier: str) -> str:
 
 
 def validate_mappings(
-    config: GarakConfig, client: GarakClientWrapper
+    config: GarakConfig, client: GarakClient
 ) -> dict[str, Any]:
     """
     Validate all probe_categories mappings in config.
 
     Args:
         config: GarakConfig with probe_categories to validate.
-        client: GarakClientWrapper for querying available probes.
+        client: GarakClient for querying available probes.
 
     Returns:
         Validation report with:

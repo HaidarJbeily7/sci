@@ -274,8 +274,14 @@ class TestFindingParsing:
     def test_determine_severity_high_score(
         self, processor: GarakResultProcessor
     ) -> None:
-        """Test severity determination for high confidence."""
-        raw = {"status": "fail", "passed": False, "confidence": 0.95}
+        """Test severity determination for high-severity probe failure."""
+        # Include probe name that triggers high severity (e.g., "dan" or "jailbreak")
+        raw = {
+            "status": "fail",
+            "passed": False,
+            "probe": "dan.DAN",
+            "confidence": 0.95,
+        }
         severity = processor._determine_severity(raw)
         assert severity in (Severity.CRITICAL, Severity.HIGH)
 

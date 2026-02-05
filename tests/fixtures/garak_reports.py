@@ -429,13 +429,13 @@ def get_sample_vulnerability_findings() -> list[dict[str, Any]]:
 
 
 # =============================================================================
-# Mock GarakClientWrapper Responses
+# Mock GarakClient Responses
 # =============================================================================
 
 
 def get_mock_client_run_scan_response() -> dict[str, Any]:
     """
-    Get a mock response for GarakClientWrapper.run_scan().
+    Get a mock response for GarakClient.run_scan().
 
     Returns:
         Dictionary mimicking the run_scan() return value.

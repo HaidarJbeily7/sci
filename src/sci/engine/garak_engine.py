@@ -72,7 +72,7 @@ class GarakEngine:
     Attributes:
         config: GarakConfig instance with framework settings.
         config_manager: ConfigManager for accessing configuration.
-        client: GarakClientWrapper for executing scans.
+        client: GarakClient for executing scans.
         probe_mapper: ProbeMapper for translating probe names.
         detector_mapper: DetectorMapper for translating detector names.
         compliance_mapper: ComplianceMapper for EU AI Act mapping.
@@ -158,7 +158,7 @@ class GarakEngine:
         3. Map SCI probe names to garak identifiers
         4. Load and validate provider configuration
         5. Adapt provider config for authentication
-        6. Execute scan via GarakClientWrapper
+        6. Execute scan via GarakClient
         7. Aggregate and return results with metadata
 
         Args:

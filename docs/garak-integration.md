@@ -24,7 +24,7 @@ The garak integration consists of several components:
 │  └──────┬──────┘  └──────┬───────┘  └──────┬──────┘  └───────┬───────┘ │
 │         │                │                 │                  │         │
 │  ┌──────┴────────────────┴─────────────────┴──────────────────┴──────┐  │
-│  │                      GarakClientWrapper                           │  │
+│  │                      GarakClient                           │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐   │  │
 │  │  │ CLI Builder │  │Report Parser│  │  Environment Manager    │   │  │
 │  │  └─────────────┘  └─────────────┘  └─────────────────────────┘   │  │
@@ -42,7 +42,7 @@ The garak integration consists of several components:
 | Component | Description |
 |-----------|-------------|
 | `GarakEngine` | Main orchestration engine coordinating scan lifecycle |
-| `GarakClientWrapper` | Python wrapper around garak CLI |
+| `GarakClient` | Python wrapper around garak CLI |
 | `ProbeMapper` | Maps SCI probe names to garak probe identifiers |
 | `DetectorMapper` | Maps SCI detector names to garak detector configurations |
 | `ComplianceMapper` | Associates probes/detectors with EU AI Act articles |
@@ -450,7 +450,7 @@ sequenceDiagram
     participant CLI as sci run
     participant Engine as GarakEngine
     participant Mapper as ProbeMapper
-    participant Client as GarakClientWrapper
+    participant Client as GarakClient
     participant Garak as garak CLI
     participant Processor as ResultProcessor
 
@@ -511,10 +511,10 @@ class GarakEngine:
     def list_detectors(self, category: Optional[str] = None) -> list[dict]: ...
 ```
 
-### GarakClientWrapper
+### GarakClient
 
 ```python
-class GarakClientWrapper:
+class GarakClient:
     """Wrapper for the garak security testing framework."""
 
     def __init__(self, config: GarakConfig) -> None: ...

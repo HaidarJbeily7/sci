@@ -74,7 +74,11 @@ class TestConfigManager:
         manager.load()
         manager.set("providers.openai.api_key", "sk-secret-key-12345")
         masked = manager.mask_secrets()
-        assert masked.get("providers", {}).get("openai", {}).get("api_key") == "***MASKED***"
+        # Dynaconf uses uppercase keys internally
+        providers = masked.get("PROVIDERS", masked.get("providers", {}))
+        openai = providers.get("openai", providers.get("OPENAI", {}))
+        api_key = openai.get("api_key", openai.get("API_KEY"))
+        assert api_key == "***MASKED***"
 
     def test_load_yaml_file(self) -> None:
         """Test loading configuration from YAML file."""
