@@ -138,6 +138,7 @@ class ProvidersConfig(BaseModel):
     azure: Optional[AzureProviderConfig] = None
     aws: Optional[AWSProviderConfig] = None
     huggingface: Optional[ProviderConfig] = None
+    openrouter: Optional[ProviderConfig] = None
 
 
 class TestProfile(BaseModel):

@@ -727,6 +727,11 @@ def validate_api_key_format(api_key: str, provider: str) -> tuple[bool, str]:
             "min_length": 30,
             "description": "HuggingFace tokens start with 'hf_' and are at least 30 characters",
         },
+        "openrouter": {
+            "prefix": "sk-or-",
+            "min_length": 40,
+            "description": "OpenRouter API keys start with 'sk-or-' and are at least 40 characters",
+        },
     }
 
     if provider_lower in format_rules:

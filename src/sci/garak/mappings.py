@@ -5,10 +5,21 @@ This module provides a comprehensive mapping system that translates SCI's semant
 probe and detector names to garak's technical identifiers. It includes EU AI Act
 compliance mappings that associate probe categories with specific articles and annexes.
 
+The EU AI Act mappings are based on the COMPL-AI Framework (ETH Zurich, INSAIT,
+LatticeFlow AI) which provides authoritative academic interpretation of EU AI Act
+technical requirements for LLMs. See docs/eu_ai_act_probe_mapping.md for full
+academic documentation and citations.
+
+Academic Sources:
+- COMPL-AI Framework: arXiv:2410.07959
+- ACM FAccT 2025: DOI 10.1145/3715275.3732020
+- EU AI Act: artificialintelligenceact.eu
+
 The mapping architecture consists of:
 - ProbeMapper: Maps SCI probe names to garak probe module identifiers
 - DetectorMapper: Maps SCI detector names to garak detector types
 - ComplianceMapper: Associates probes/detectors with EU AI Act requirements
+- COMPL_AI_REQUIREMENTS: Academic reference for 18 technical requirements
 
 Example:
     >>> from sci.config.models import GarakConfig
@@ -21,10 +32,10 @@ Example:
     >>> garak_probes = mapper.map_probe_name("prompt_injection_basic")
     >>> # Returns: ["promptinject.HumanJailbreaks", "promptinject.AutoDAN", ...]
     >>>
-    >>> # Get EU AI Act compliance tags
+    >>> # Get EU AI Act compliance tags (paragraph-level specificity)
     >>> compliance = ComplianceMapper()
     >>> articles = compliance.get_articles_for_probe("prompt_injection_basic")
-    >>> # Returns: ["article-15", "article-9"]
+    >>> # Returns: ["article-15-5"]  # Cyberattack Resilience
 """
 
 from __future__ import annotations
@@ -162,82 +173,321 @@ DETECTOR_TYPE_MAPPING: dict[str, dict[str, Any]] = {
     },
 }
 
+# =============================================================================
+# COMPL-AI Technical Requirements (Academic Reference)
+# =============================================================================
+# Based on COMPL-AI Framework (ETH Zurich, INSAIT, LatticeFlow AI)
+# arXiv:2410.07959 - https://arxiv.org/abs/2410.07959
+# See docs/eu_ai_act_probe_mapping.md for full academic documentation
+
+COMPL_AI_REQUIREMENTS: dict[str, dict[str, Any]] = {
+    # Technical Robustness & Safety
+    "cyberattack_resilience": {
+        "articles": ["article-15-5", "article-55-1-d"],
+        "principle": "Technical Robustness & Safety",
+        "description": "Resistance to jailbreaks, prompt injection, and adversarial manipulation per Art. 15(5)",
+        "benchmarks": ["instruction_goal_hijacking", "llm_rules", "dan_jailbreaks"],
+        "legal_text": "High-risk AI systems shall be resilient against attempts by unauthorized third parties "
+                     "to alter their use, outputs or performance by exploiting system vulnerabilities.",
+    },
+    "robustness_predictability": {
+        "articles": ["article-15-1", "article-15-4"],
+        "principle": "Technical Robustness & Safety",
+        "description": "Consistent responses under input variations per Art. 15(4)",
+        "benchmarks": ["boolq_contrast", "mmlu_pro_robustness"],
+        "legal_text": "High-risk AI systems shall be resilient regarding errors, faults or inconsistencies.",
+    },
+    "corrigibility": {
+        "articles": ["article-15", "article-14"],
+        "principle": "Technical Robustness & Safety",
+        "description": "Ability to be corrected and controlled per Art. 14 and Art. 15",
+        "benchmarks": ["corrigibility_tests"],
+        "legal_text": "Systems shall be designed to enable human oversight.",
+    },
+    # Privacy & Data Governance
+    "training_data_suitability": {
+        "articles": ["article-10-2", "article-10-3"],
+        "principle": "Privacy & Data Governance",
+        "description": "Appropriate data quality and relevance per Art. 10(2-3)",
+        "benchmarks": ["data_quality_assessment"],
+        "legal_text": "Training, validation and testing data sets shall be relevant, sufficiently representative.",
+    },
+    "no_copyright_infringement": {
+        "articles": ["article-53-1-c", "article-53-1-d"],
+        "principle": "Privacy & Data Governance",
+        "description": "Protection of copyrighted training data per Art. 53(1)(c)",
+        "benchmarks": ["copyright_memorization", "training_data_extraction"],
+        "legal_text": "Make publicly available a sufficiently detailed summary of the content used for training.",
+    },
+    "user_privacy_protection": {
+        "articles": ["article-10-5", "article-53-1-e"],
+        "principle": "Privacy & Data Governance",
+        "description": "Protection of user data and privacy per Art. 10(5)",
+        "benchmarks": ["pii_leakage", "privacy_violation"],
+        "legal_text": "Appropriate data governance and management practices for privacy.",
+    },
+    # Transparency
+    "capabilities_limitations": {
+        "articles": ["article-13-1", "article-53-1-a"],
+        "principle": "Transparency",
+        "description": "Clear documentation of model capabilities per Art. 13(1)",
+        "benchmarks": ["capability_documentation"],
+        "legal_text": "Designed and developed to ensure transparent operation.",
+    },
+    "interpretability": {
+        "articles": ["article-13-1", "article-14-4"],
+        "principle": "Transparency",
+        "description": "Understandable model behavior per Art. 14(4)",
+        "benchmarks": ["interpretability_tests"],
+        "legal_text": "Enabling users to understand the output of the AI system.",
+    },
+    "ai_disclosure": {
+        "articles": ["article-50-1", "article-50-2"],
+        "principle": "Transparency",
+        "description": "Disclosure of AI-generated content per Art. 50",
+        "benchmarks": ["ai_disclosure_compliance"],
+        "legal_text": "AI systems shall be designed to inform natural persons of AI interaction.",
+    },
+    # Diversity, Non-discrimination & Fairness
+    "absence_of_bias": {
+        "articles": ["article-10-2-f", "annex-iv-2-g"],
+        "principle": "Diversity, Non-discrimination & Fairness",
+        "description": "Freedom from systematic bias per Art. 10(2)(f) and Annex IV",
+        "benchmarks": ["bias_detection", "demographic_parity"],
+        "legal_text": "Examination of training data in view of possible biases.",
+    },
+    "absence_of_discrimination": {
+        "articles": ["article-15-4", "article-10-2-g"],
+        "principle": "Diversity, Non-discrimination & Fairness",
+        "description": "Non-discriminatory outputs per Art. 15(4)",
+        "benchmarks": ["discrimination_testing", "fairness_assessment"],
+        "legal_text": "Appropriate for the intended purpose avoiding discriminatory effects.",
+    },
+    # Social & Environmental Well-being
+    "harmful_content_prevention": {
+        "articles": ["article-9", "article-95"],
+        "principle": "Social & Environmental Well-being",
+        "description": "Prevention of toxic/harmful outputs per Art. 9 and Art. 95",
+        "benchmarks": ["toxicity_generation", "harmful_content"],
+        "legal_text": "Risk management system addressing foreseeable risks to health, safety, fundamental rights.",
+    },
+    "environmental_impact": {
+        "articles": ["article-40", "article-95"],
+        "principle": "Social & Environmental Well-being",
+        "description": "Energy efficiency and sustainability per Art. 40",
+        "benchmarks": ["energy_consumption"],
+        "legal_text": "Measures to reduce environmental impact of AI systems.",
+    },
+}
+
 # Mapping of probe/detector categories to EU AI Act requirements
+# Based on COMPL-AI Framework and ACM FAccT 2025 research
+# See docs/eu_ai_act_probe_mapping.md for full academic justification
 EU_AI_ACT_MAPPING: dict[str, dict[str, Any]] = {
-    # Prompt injection and jailbreak probes → Article 15 (robustness, cybersecurity)
+    # =========================================================================
+    # Cyberattack Resilience (Art. 15(5)) - Prompt injection, jailbreaking
+    # =========================================================================
     "prompt_injection": {
-        "articles": ["article-15", "article-9"],
-        "description": "Testing robustness against adversarial inputs",
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Resilience against adversarial input manipulation (Art. 15(5))",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Systems shall be resilient against unauthorized third parties altering "
+                      "use or outputs via adversarial examples and input manipulation.",
     },
     "jailbreak": {
-        "articles": ["article-15", "article-9"],
-        "description": "Testing resilience against jailbreak attempts",
+        "articles": ["article-15-5", "article-55-1-d"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Resistance to safety measure circumvention (Art. 15(5), Art. 55(1)(d))",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Internal and external adversarial testing including red teaming "
+                      "to evaluate resilience against exploitation.",
     },
-    # Data extraction probes → Article 10 (data governance), Article 13 (transparency)
+    "jailbreak_encoding": {
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Resistance to encoding-based evasion attacks (Art. 15(5))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Resilience against model evasion attacks via encoding obfuscation.",
+    },
+    # =========================================================================
+    # Data Governance (Art. 10) - Extraction, leakage, privacy
+    # =========================================================================
     "extraction": {
-        "articles": ["article-10", "article-13", "article-15"],
-        "description": "Testing for unauthorized data leakage",
+        "articles": ["article-10", "article-53-1-c"],
+        "requirement": "User Privacy Protection / No Copyright Infringement",
+        "description": "Prevention of unauthorized data disclosure (Art. 10, Art. 53(1)(c))",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Data governance requirements and publicly available training data summaries.",
     },
-    # Bias detection → Article 10 (data quality, bias mitigation)
+    "leakage": {
+        "articles": ["article-10-5", "article-53-1-e"],
+        "requirement": "User Privacy Protection",
+        "description": "Testing for sensitive information disclosure (Art. 10(5), Art. 53(1)(e))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Appropriate data governance and management practices for privacy and data protection.",
+    },
+    # =========================================================================
+    # Fairness (Art. 15(4), Annex IV) - Bias detection
+    # =========================================================================
     "bias": {
-        "articles": ["article-10", "article-9"],
-        "description": "Evaluating bias in model outputs",
+        "articles": ["article-15-4", "annex-iv-2-g"],
+        "requirement": "Absence of Bias / Absence of Discrimination",
+        "description": "Evaluation of demographic representation (Art. 15(4), Annex IV(2)(g))",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Systems appropriate for intended purpose with examination of possible biases "
+                      "that are likely to affect health and safety or fundamental rights.",
     },
-    # Toxicity detection → Article 9 (risk management)
+    # =========================================================================
+    # Harmful Content (Art. 9, Art. 95) - Toxicity, safety
+    # =========================================================================
     "toxicity": {
-        "articles": ["article-9"],
-        "description": "Assessing harmful content generation",
+        "articles": ["article-9", "article-95"],
+        "requirement": "Harmful Content Prevention",
+        "description": "Prevention of harmful/toxic content generation (Art. 9, Art. 95)",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Risk management system addressing foreseeable risks and societal well-being.",
     },
-    # Transparency probes → Article 13 (transparency obligations)
-    "transparency": {
-        "articles": ["article-13", "article-52"],
-        "description": "Testing transparency and disclosure requirements",
+    "continuation": {
+        "articles": ["article-9", "article-95"],
+        "requirement": "Harmful Content Prevention",
+        "description": "Prevention of harmful content continuation (Art. 9, Art. 95)",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Risk management for harmful content that may affect health and safety.",
+    },
+    "donotanswer": {
+        "articles": ["article-9"],
+        "requirement": "Harmful Content Prevention",
+        "description": "Content moderation boundary testing (Art. 9)",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Risk management system for content that should be refused.",
+    },
+    "lmrc": {
+        "articles": ["article-9", "article-95"],
+        "requirement": "Harmful Content Prevention",
+        "description": "Language model risk categories assessment (Art. 9, Art. 95)",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Comprehensive risk assessment for various harm categories.",
+    },
+    # =========================================================================
+    # Cyberattack Resilience (Art. 15(5)) - Malware, XSS, attack generation
+    # =========================================================================
+    "manipulation": {
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Output integrity and manipulation resistance (Art. 15(5))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Resilience against attempts to alter outputs through exploitation.",
+    },
+    "xss": {
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Cross-site scripting and output injection resistance (Art. 15(5))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Resilience against model evasion attacks via output injection.",
+    },
+    "atkgen": {
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Resistance to automated attack generation (Art. 15(5))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Resilience against adversarial attack generation techniques.",
+    },
+    "gcg": {
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Resistance to gradient-based adversarial attacks (Art. 15(5))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Resilience against adversarial examples exploiting model gradients.",
+    },
+    "glitch": {
+        "articles": ["article-15-5"],
+        "requirement": "Cyberattack Resilience",
+        "description": "Resistance to adversarial token attacks (Art. 15(5))",
+        "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Resilience against glitch/anomalous token exploitation.",
+    },
+    # =========================================================================
+    # Accuracy & Interpretability (Art. 13, Art. 15) - Hallucination
+    # =========================================================================
+    "hallucination": {
+        "articles": ["article-13-1", "article-15-1"],
+        "requirement": "Accuracy / Interpretability",
+        "description": "Factual accuracy and reliability evaluation (Art. 13(1), Art. 15(1))",
         "risk_level": RiskLevel.LIMITED,
+        "legal_basis": "Appropriate level of accuracy, robustness and transparency in operation.",
+    },
+    "misleading": {
+        "articles": ["article-13-1", "article-15-1"],
+        "requirement": "Accuracy / Interpretability",
+        "description": "Misinformation and false assertion testing (Art. 13(1), Art. 15(1))",
+        "risk_level": RiskLevel.LIMITED,
+        "legal_basis": "Accuracy and reliability requirements for AI system outputs.",
+    },
+    "packagehallucination": {
+        "articles": ["article-13-1", "article-15-1"],
+        "requirement": "Accuracy / Interpretability",
+        "description": "Code generation accuracy testing (Art. 13(1), Art. 15(1))",
+        "risk_level": RiskLevel.LIMITED,
+        "legal_basis": "Accuracy requirements for code and technical outputs.",
+    },
+    "snowball": {
+        "articles": ["article-13-1", "article-15-1"],
+        "requirement": "Accuracy / Interpretability",
+        "description": "Logical reasoning and deductive accuracy (Art. 13(1), Art. 15(1))",
+        "risk_level": RiskLevel.LIMITED,
+        "legal_basis": "Reliability and consistency in reasoning outputs.",
+    },
+    # =========================================================================
+    # Transparency (Art. 13, Art. 50)
+    # =========================================================================
+    "transparency": {
+        "articles": ["article-13", "article-50"],
+        "requirement": "AI Disclosure / Capabilities",
+        "description": "Testing transparency and disclosure requirements (Art. 13, Art. 50)",
+        "risk_level": RiskLevel.LIMITED,
+        "legal_basis": "Transparent operation and information provision to users.",
     },
     "compliance_transparency": {
-        "articles": ["article-13", "article-52"],
-        "description": "Verifying AI system transparency compliance",
+        "articles": ["article-13", "article-50"],
+        "requirement": "AI Disclosure / Capabilities",
+        "description": "Verifying AI system transparency compliance (Art. 13, Art. 50)",
         "risk_level": RiskLevel.LIMITED,
+        "legal_basis": "AI systems shall be designed to inform natural persons of AI interaction.",
     },
-    # Human oversight probes → Article 14 (human oversight requirements)
+    # =========================================================================
+    # Human Oversight (Art. 14)
+    # =========================================================================
     "human_oversight": {
         "articles": ["article-14"],
-        "description": "Testing human oversight mechanisms",
+        "requirement": "Corrigibility",
+        "description": "Testing human oversight mechanisms (Art. 14)",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Systems designed to enable effective human oversight during use.",
     },
     "compliance_human_oversight": {
         "articles": ["article-14"],
-        "description": "Verifying human oversight compliance",
+        "requirement": "Corrigibility",
+        "description": "Verifying human oversight compliance (Art. 14)",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Measures enabling individuals to oversee AI system functioning.",
     },
-    # Output manipulation → Article 9, Article 15
-    "manipulation": {
-        "articles": ["article-9", "article-15"],
-        "description": "Testing output integrity and manipulation resistance",
-        "risk_level": RiskLevel.HIGH,
+    # =========================================================================
+    # Baseline & Comprehensive Testing
+    # =========================================================================
+    "goodside": {
+        "articles": [],
+        "requirement": "Baseline Testing",
+        "description": "Baseline testing with known benign prompts",
+        "risk_level": RiskLevel.MINIMAL,
+        "legal_basis": "Baseline for comparison with adversarial testing.",
     },
-    # Hallucination detection → Article 13, Article 15
-    "hallucination": {
-        "articles": ["article-13", "article-15"],
-        "description": "Evaluating factual accuracy and reliability",
-        "risk_level": RiskLevel.LIMITED,
-    },
-    # Leakage detection → Article 10, Article 13
-    "leakage": {
-        "articles": ["article-10", "article-13"],
-        "description": "Testing for sensitive information disclosure",
-        "risk_level": RiskLevel.HIGH,
-    },
-    # Comprehensive testing → Annex IV (technical documentation)
     "comprehensive": {
         "articles": ["annex-iv"],
-        "description": "Full technical documentation compliance",
+        "requirement": "Technical Documentation",
+        "description": "Full technical documentation compliance (Annex IV)",
         "risk_level": RiskLevel.HIGH,
+        "legal_basis": "Comprehensive technical documentation requirements per Annex IV.",
     },
 }
 
@@ -690,11 +940,16 @@ class ComplianceMapper:
     with specific EU AI Act articles and annexes, enabling compliance
     reporting and risk assessment.
 
+    The mappings are based on the COMPL-AI Framework (arXiv:2410.07959) which
+    provides academically-grounded interpretation of EU AI Act requirements.
+    Article references include paragraph-level specificity (e.g., "article-15-5"
+    for Cyberattack Resilience).
+
     Example:
         >>> mapper = ComplianceMapper()
         >>> articles = mapper.get_articles_for_probe("prompt_injection_basic")
         >>> print(articles)
-        ['article-15', 'article-9']
+        ['article-15-5']  # Cyberattack Resilience per COMPL-AI
     """
 
     def __init__(self) -> None:
@@ -710,11 +965,12 @@ class ComplianceMapper:
             probe_name: SCI probe name (e.g., "prompt_injection_basic").
 
         Returns:
-            List of article identifiers (e.g., ["article-15", "article-9"]).
+            List of article identifiers with paragraph-level specificity
+            (e.g., ["article-15-5"] for Cyberattack Resilience).
 
         Example:
             >>> mapper.get_articles_for_probe("prompt_injection_basic")
-            ['article-15', 'article-9']
+            ['article-15-5']  # Cyberattack Resilience
         """
         category = self._extract_category(probe_name)
         mapping = EU_AI_ACT_MAPPING.get(category, {})
@@ -751,7 +1007,8 @@ class ComplianceMapper:
             detectors: List of SCI detector names.
 
         Returns:
-            Unique sorted list of all applicable articles and annexes.
+            Unique sorted list of all applicable articles and annexes,
+            with paragraph-level specificity per COMPL-AI Framework.
 
         Example:
             >>> tags = mapper.get_compliance_tags(
@@ -759,7 +1016,7 @@ class ComplianceMapper:
             ...     ["toxicity_basic", "leakage_basic"]
             ... )
             >>> print(tags)
-            ['article-9', 'article-10', 'article-13', 'article-15']
+            ['article-9', 'article-10', 'article-15-5', 'article-53-1-c']
         """
         all_tags: set[str] = set()
 
@@ -1201,29 +1458,46 @@ def get_all_compliance_articles() -> list[str]:
     Get all unique EU AI Act articles referenced in mappings.
 
     Returns:
-        Sorted list of article identifiers.
+        Sorted list of article identifiers with paragraph-level specificity.
 
     Example:
         >>> articles = get_all_compliance_articles()
         >>> print(articles)
-        ['article-9', 'article-10', 'article-13', 'article-14', 'article-15', ...]
+        ['article-9', 'article-10', 'article-13-1', 'article-14', 'article-15-1', 'article-15-4', 'article-15-5', ...]
     """
     all_articles: set[str] = set()
 
     for mapping in EU_AI_ACT_MAPPING.values():
         all_articles.update(mapping.get("articles", []))
 
-    # Sort with proper ordering
-    def sort_key(article: str) -> tuple[int, int]:
+    # Sort with proper ordering (handles paragraph-level specificity like "article-15-5")
+    def sort_key(article: str) -> tuple[int, int, int, str]:
         if article.startswith("article-"):
-            num = int(article.split("-")[1])
-            return (0, num)
+            parts = article.split("-")
+            # Extract article number
+            article_num = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+            # Extract paragraph number if present (e.g., "15-5" -> 5, "15-1-d" -> 1)
+            paragraph_num = 0
+            sub_paragraph = ""
+            if len(parts) > 2:
+                if parts[2].isdigit():
+                    paragraph_num = int(parts[2])
+                else:
+                    sub_paragraph = parts[2]
+            if len(parts) > 3:
+                sub_paragraph = parts[3]
+            return (0, article_num, paragraph_num, sub_paragraph)
         elif article.startswith("annex-"):
             # Convert Roman numerals to numbers for sorting
-            numeral = article.split("-")[1].upper()
+            parts = article.split("-")
+            numeral = parts[1].upper() if len(parts) > 1 else ""
             roman_values = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6}
-            return (1, roman_values.get(numeral, 99))
-        return (2, 0)
+            annex_num = roman_values.get(numeral, 99)
+            # Handle sub-sections like "annex-iv-2-g"
+            section_num = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+            sub_section = parts[3] if len(parts) > 3 else ""
+            return (1, annex_num, section_num, sub_section)
+        return (2, 0, 0, "")
 
     return sorted(all_articles, key=sort_key)
 
@@ -1232,21 +1506,81 @@ def get_probes_for_article(article: str) -> list[str]:
     """
     Get all probe categories relevant to an EU AI Act article.
 
+    Supports both general article matching (e.g., "article-15" matches
+    "article-15-1", "article-15-4", "article-15-5") and exact matching.
+
     Args:
-        article: Article identifier (e.g., "article-15").
+        article: Article identifier (e.g., "article-15" or "article-15-5").
 
     Returns:
         List of probe category names.
 
     Example:
-        >>> probes = get_probes_for_article("article-15")
+        >>> probes = get_probes_for_article("article-15-5")
         >>> print(probes)
-        ['prompt_injection', 'jailbreak', 'extraction', 'manipulation']
+        ['prompt_injection', 'jailbreak', 'manipulation', 'xss', 'atkgen', 'gcg', 'glitch']
     """
     relevant_probes: list[str] = []
 
     for category, mapping in EU_AI_ACT_MAPPING.items():
-        if article in mapping.get("articles", []):
-            relevant_probes.append(category)
+        articles = mapping.get("articles", [])
+        # Check for exact match or prefix match (e.g., "article-15" matches "article-15-5")
+        for mapped_article in articles:
+            if article == mapped_article or mapped_article.startswith(f"{article}-"):
+                relevant_probes.append(category)
+                break
 
     return sorted(relevant_probes)
+
+
+def get_requirement_for_category(category: str) -> dict[str, Any]:
+    """
+    Get the COMPL-AI technical requirement information for a probe category.
+
+    Args:
+        category: Probe/detector category name.
+
+    Returns:
+        Dictionary containing:
+        - requirement: COMPL-AI technical requirement name
+        - articles: List of relevant EU AI Act articles
+        - description: Human-readable description
+        - legal_basis: Legal text justification (if available)
+
+    Example:
+        >>> info = get_requirement_for_category("prompt_injection")
+        >>> print(info["requirement"])
+        'Cyberattack Resilience'
+        >>> print(info["articles"])
+        ['article-15-5']
+    """
+    mapping = EU_AI_ACT_MAPPING.get(category, {})
+
+    return {
+        "requirement": mapping.get("requirement", "Unknown"),
+        "articles": mapping.get("articles", []),
+        "description": mapping.get("description", "No description available"),
+        "legal_basis": mapping.get("legal_basis", ""),
+        "risk_level": mapping.get("risk_level", RiskLevel.MINIMAL),
+    }
+
+
+def get_compl_ai_requirement(requirement_name: str) -> dict[str, Any]:
+    """
+    Get detailed COMPL-AI requirement information by name.
+
+    Args:
+        requirement_name: COMPL-AI requirement name (e.g., "cyberattack_resilience").
+
+    Returns:
+        Dictionary with full requirement details from COMPL_AI_REQUIREMENTS,
+        or empty dict if not found.
+
+    Example:
+        >>> req = get_compl_ai_requirement("cyberattack_resilience")
+        >>> print(req["principle"])
+        'Technical Robustness & Safety'
+        >>> print(req["articles"])
+        ['article-15-5', 'article-55-1-d']
+    """
+    return dict(COMPL_AI_REQUIREMENTS.get(requirement_name, {}))

@@ -315,6 +315,60 @@ def adapt_huggingface_config(
     return "huggingface.InferenceAPI", env_vars, additional_params
 
 
+def adapt_openrouter_config(
+    config: ProviderConfig,
+) -> tuple[str, dict[str, str], dict[str, Any]]:
+    """
+    Adapt OpenRouter provider configuration for garak.
+
+    OpenRouter provides an OpenAI-compatible API that can access 300+ models
+    from various providers (OpenAI, Anthropic, Google, Meta, etc.) through
+    a single endpoint.
+
+    Uses LiteLLM which has native OpenRouter support via the 'openrouter/' prefix.
+
+    Args:
+        config: SCI ProviderConfig for OpenRouter.
+
+    Returns:
+        Tuple of (generator_type, env_vars, additional_params).
+
+    Example:
+        >>> config = ProviderConfig(
+        ...     api_key="sk-or-v1-...",
+        ...     model="anthropic/claude-3-opus"
+        ... )
+        >>> gen_type, env_vars, params = adapt_openrouter_config(config)
+        >>> gen_type
+        'litellm.LiteLLMGenerator'
+        >>> params['model_name']
+        'openrouter/anthropic/claude-3-opus'
+    """
+    env_vars: dict[str, str] = {}
+    additional_params: dict[str, Any] = {}
+
+    # LiteLLM uses OPENROUTER_API_KEY for OpenRouter
+    if config.api_key:
+        env_vars["OPENROUTER_API_KEY"] = config.api_key
+
+    # Model names need 'openrouter/' prefix for LiteLLM
+    # e.g., "anthropic/claude-3-opus" -> "openrouter/anthropic/claude-3-opus"
+    if config.model:
+        model_name = config.model
+        if not model_name.startswith("openrouter/"):
+            model_name = f"openrouter/{model_name}"
+        additional_params["model_name"] = model_name
+
+    logger.debug(
+        "adapted_openrouter_config",
+        has_api_key=bool(config.api_key),
+        model=additional_params.get("model_name"),
+    )
+
+    # Use LiteLLM generator which has native OpenRouter support
+    return "litellm.LiteLLMGenerator", env_vars, additional_params
+
+
 # Type alias for adapter functions
 AdapterFunc = Callable[[ProviderConfig], tuple[str, dict[str, str], dict[str, Any]]]
 
@@ -329,6 +383,7 @@ _ADAPTER_REGISTRY: dict[str, AdapterFunc] = {
     "huggingface": adapt_huggingface_config,
     "hugging_face": adapt_huggingface_config,
     "hf": adapt_huggingface_config,
+    "openrouter": adapt_openrouter_config,
 }
 
 
@@ -447,6 +502,7 @@ def validate_provider_config(
         "azure": "https://learn.microsoft.com/azure/ai-services/openai",
         "aws": "https://docs.aws.amazon.com/bedrock",
         "huggingface": "https://huggingface.co/docs",
+        "openrouter": "https://openrouter.ai/docs",
     }
 
     # Common validation: API key required for most providers
@@ -457,6 +513,7 @@ def validate_provider_config(
         "huggingface",
         "hugging_face",
         "hf",
+        "openrouter",
     }
 
     if provider_key in api_key_required_providers:

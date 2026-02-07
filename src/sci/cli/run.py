@@ -156,7 +156,7 @@ class Provider(str, Enum):
     AZURE = "azure"
     AWS = "aws"
     HUGGINGFACE = "huggingface"
-
+    OPENROUTER = "openrouter"
 
 class OutputFormat(str, Enum):
     """Supported output formats."""
@@ -1237,3 +1237,254 @@ def list_detectors(
 
     console.print()
     console.print("[dim]Use --category option to filter detectors.[/dim]")
+
+
+# =============================================================================
+# LiteLLM Provider Models Data
+# =============================================================================
+# Models available for each provider using LiteLLM naming conventions.
+# LiteLLM is used by garak for model access. Model IDs shown here are the
+# exact strings to use with --model flag.
+#
+# Reference: https://docs.litellm.ai/docs/providers
+# Updated: February 2026
+
+PROVIDER_MODELS: dict[str, list[dict[str, str]]] = {
+    "openai": [
+        # OpenAI models - no prefix needed
+        # GPT-4.1 Series (Latest)
+        {"id": "gpt-4.1", "name": "GPT-4.1", "description": "Latest flagship model"},
+        {"id": "gpt-4.1-mini", "name": "GPT-4.1 Mini", "description": "Fast, efficient variant"},
+        {"id": "gpt-4.1-nano", "name": "GPT-4.1 Nano", "description": "Smallest, fastest variant"},
+        # GPT-4o Series
+        {"id": "gpt-4o", "name": "GPT-4o", "description": "Multimodal model"},
+        {"id": "gpt-4o-2024-08-06", "name": "GPT-4o (Aug 2024)", "description": "Snapshot version"},
+        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "Fast, affordable"},
+        {"id": "gpt-4o-mini-2024-07-18", "name": "GPT-4o Mini (Jul 2024)", "description": "Snapshot version"},
+        # GPT-4 Turbo
+        {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "description": "Fast with vision"},
+        {"id": "gpt-4-0125-preview", "name": "GPT-4 (Jan 2025)", "description": "Preview version"},
+        {"id": "gpt-4-1106-preview", "name": "GPT-4 (Nov 2024)", "description": "Preview version"},
+        # GPT-4
+        {"id": "gpt-4", "name": "GPT-4", "description": "Original GPT-4"},
+        {"id": "gpt-4-0613", "name": "GPT-4 (Jun 2023)", "description": "Snapshot version"},
+        # GPT-3.5
+        {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "description": "Fast and cheap"},
+        {"id": "gpt-3.5-turbo-0125", "name": "GPT-3.5 Turbo (Jan 2025)", "description": "Latest snapshot"},
+        # Reasoning Models (o-series)
+        {"id": "o1", "name": "o1", "description": "Reasoning model"},
+        {"id": "o1-mini", "name": "o1 Mini", "description": "Fast reasoning"},
+        {"id": "o1-preview", "name": "o1 Preview", "description": "Reasoning preview"},
+        {"id": "o3-mini", "name": "o3 Mini", "description": "Latest reasoning"},
+        {"id": "o4-mini", "name": "o4 Mini", "description": "Newest reasoning"},
+    ],
+    "anthropic": [
+        # Anthropic models - SCI auto-adds "anthropic/" prefix
+        # Claude 4 Series (Latest)
+        {"id": "claude-opus-4-5-20251101", "name": "Claude Opus 4.5", "description": "Most capable, flagship"},
+        {"id": "claude-opus-4-20250514", "name": "Claude Opus 4", "description": "Complex reasoning"},
+        {"id": "claude-sonnet-4-5-20250929", "name": "Claude Sonnet 4.5", "description": "Latest Sonnet"},
+        {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "description": "Balanced performance"},
+        # Claude 3.7 Series
+        {"id": "claude-3-7-sonnet-20250219", "name": "Claude 3.7 Sonnet", "description": "Enhanced Sonnet"},
+        # Claude 3.5 Series
+        {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "description": "Previous Sonnet"},
+        {"id": "claude-3-5-sonnet-20240620", "name": "Claude 3.5 Sonnet (Jun)", "description": "First 3.5 Sonnet"},
+        {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "description": "Fast and efficient"},
+        # Claude 3 Series
+        {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "description": "Previous flagship"},
+        {"id": "claude-3-sonnet-20240229", "name": "Claude 3 Sonnet", "description": "Previous Sonnet"},
+        {"id": "claude-3-haiku-20240307", "name": "Claude 3 Haiku", "description": "Previous Haiku"},
+        # Legacy
+        {"id": "claude-2.1", "name": "Claude 2.1", "description": "Legacy model"},
+    ],
+    "google": [
+        # Google/Gemini models - SCI auto-adds "gemini/" prefix
+        # Gemini 2.5 Series (Latest)
+        {"id": "gemini-2.5-flash-preview-09-2025", "name": "Gemini 2.5 Flash", "description": "Latest fast model"},
+        {"id": "gemini-2.5-flash-lite-preview-09-2025", "name": "Gemini 2.5 Flash Lite", "description": "Lightweight"},
+        # Gemini 2.0 Series
+        {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "description": "Fast multimodal"},
+        {"id": "gemini-2.0-flash-exp", "name": "Gemini 2.0 Flash Exp", "description": "Experimental"},
+        {"id": "gemini-2.0-flash-lite-preview-02-05", "name": "Gemini 2.0 Flash Lite", "description": "Cost-efficient"},
+        {"id": "gemini-2.0-flash-thinking-exp-01-21", "name": "Gemini 2.0 Thinking", "description": "Reasoning model"},
+        # Gemini 1.5 Series
+        {"id": "gemini-1.5-pro-latest", "name": "Gemini 1.5 Pro Latest", "description": "Complex reasoning, 2M ctx"},
+        {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "description": "Complex reasoning"},
+        {"id": "gemini-1.5-flash-latest", "name": "Gemini 1.5 Flash Latest", "description": "Fast multimodal"},
+        {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "description": "Fast multimodal"},
+        {"id": "gemini-1.5-flash-8b", "name": "Gemini 1.5 Flash 8B", "description": "Smaller variant"},
+        # Aliases
+        {"id": "gemini-flash-latest", "name": "Gemini Flash Latest", "description": "Points to latest flash"},
+        {"id": "gemini-pro", "name": "Gemini Pro", "description": "General purpose"},
+    ],
+    "azure": [
+        # Azure OpenAI - use your deployment name
+        # Configure AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY
+        {"id": "<your-deployment-name>", "name": "Your Deployment", "description": "Use your Azure deployment name"},
+        {"id": "gpt-4o", "name": "GPT-4o Deployment", "description": "Common deployment name"},
+        {"id": "gpt-4-turbo", "name": "GPT-4 Turbo Deployment", "description": "Common deployment name"},
+        {"id": "gpt-4", "name": "GPT-4 Deployment", "description": "Common deployment name"},
+        {"id": "gpt-35-turbo", "name": "GPT-3.5 Turbo Deployment", "description": "Common deployment name"},
+    ],
+    "aws": [
+        # AWS Bedrock models - configure AWS credentials
+        # Claude models on Bedrock
+        {"id": "anthropic.claude-3-5-sonnet-20241022-v2:0", "name": "Claude 3.5 Sonnet v2", "description": "Latest Claude"},
+        {"id": "anthropic.claude-3-5-haiku-20241022-v1:0", "name": "Claude 3.5 Haiku", "description": "Fast Claude"},
+        {"id": "anthropic.claude-3-opus-20240229-v1:0", "name": "Claude 3 Opus", "description": "Opus on Bedrock"},
+        {"id": "anthropic.claude-3-sonnet-20240229-v1:0", "name": "Claude 3 Sonnet", "description": "Sonnet on Bedrock"},
+        {"id": "anthropic.claude-3-haiku-20240307-v1:0", "name": "Claude 3 Haiku", "description": "Haiku on Bedrock"},
+        # Amazon Titan
+        {"id": "amazon.titan-text-premier-v1:0", "name": "Titan Text Premier", "description": "Amazon flagship"},
+        {"id": "amazon.titan-text-express-v1", "name": "Titan Text Express", "description": "Fast Amazon model"},
+        {"id": "amazon.titan-text-lite-v1", "name": "Titan Text Lite", "description": "Lightweight"},
+        # Meta Llama
+        {"id": "meta.llama3-2-90b-instruct-v1:0", "name": "Llama 3.2 90B", "description": "Meta large model"},
+        {"id": "meta.llama3-2-11b-instruct-v1:0", "name": "Llama 3.2 11B", "description": "Meta medium"},
+        {"id": "meta.llama3-2-3b-instruct-v1:0", "name": "Llama 3.2 3B", "description": "Meta small"},
+        {"id": "meta.llama3-2-1b-instruct-v1:0", "name": "Llama 3.2 1B", "description": "Meta tiny"},
+        # Mistral
+        {"id": "mistral.mistral-large-2407-v1:0", "name": "Mistral Large", "description": "Mistral flagship"},
+        {"id": "mistral.mistral-small-2402-v1:0", "name": "Mistral Small", "description": "Mistral efficient"},
+        # Cohere
+        {"id": "cohere.command-r-plus-v1:0", "name": "Command R+", "description": "Cohere flagship"},
+        {"id": "cohere.command-r-v1:0", "name": "Command R", "description": "Cohere standard"},
+    ],
+    "huggingface": [
+        # Hugging Face Inference API - use full model repo path
+        # Meta Llama
+        {"id": "meta-llama/Llama-3.3-70B-Instruct", "name": "Llama 3.3 70B", "description": "Meta's latest"},
+        {"id": "meta-llama/Llama-3.2-3B-Instruct", "name": "Llama 3.2 3B", "description": "Small model"},
+        {"id": "meta-llama/Llama-3.2-1B-Instruct", "name": "Llama 3.2 1B", "description": "Tiny model"},
+        {"id": "meta-llama/Llama-3.1-8B-Instruct", "name": "Llama 3.1 8B", "description": "Balanced"},
+        {"id": "meta-llama/Llama-3.1-70B-Instruct", "name": "Llama 3.1 70B", "description": "Large model"},
+        # Mistral
+        {"id": "mistralai/Mistral-7B-Instruct-v0.3", "name": "Mistral 7B v0.3", "description": "Efficient"},
+        {"id": "mistralai/Mixtral-8x7B-Instruct-v0.1", "name": "Mixtral 8x7B", "description": "MoE model"},
+        {"id": "mistralai/Mistral-Nemo-Instruct-2407", "name": "Mistral Nemo", "description": "12B model"},
+        # Qwen
+        {"id": "Qwen/Qwen2.5-72B-Instruct", "name": "Qwen 2.5 72B", "description": "Alibaba large"},
+        {"id": "Qwen/Qwen2.5-7B-Instruct", "name": "Qwen 2.5 7B", "description": "Alibaba efficient"},
+        # Microsoft
+        {"id": "microsoft/Phi-3.5-mini-instruct", "name": "Phi 3.5 Mini", "description": "Microsoft small"},
+        {"id": "microsoft/Phi-3-medium-4k-instruct", "name": "Phi 3 Medium", "description": "Microsoft medium"},
+        # Google
+        {"id": "google/gemma-2-27b-it", "name": "Gemma 2 27B", "description": "Google open model"},
+        {"id": "google/gemma-2-9b-it", "name": "Gemma 2 9B", "description": "Google efficient"},
+        # DeepSeek
+        {"id": "deepseek-ai/DeepSeek-V3", "name": "DeepSeek V3", "description": "DeepSeek latest"},
+        {"id": "deepseek-ai/DeepSeek-R1", "name": "DeepSeek R1", "description": "DeepSeek reasoning"},
+    ],
+}
+
+
+@app.command("models")
+def list_models(
+    provider: Annotated[
+        Optional[Provider],
+        typer.Option(
+            "--provider",
+            "-p",
+            help="Filter models by provider (openai, anthropic, google, azure, aws, huggingface).",
+            case_sensitive=False,
+        ),
+    ] = None,
+    show_ids: Annotated[
+        bool,
+        typer.Option(
+            "--ids",
+            help="Show only model IDs (useful for scripting).",
+        ),
+    ] = False,
+) -> None:
+    """
+    List available models for each LLM provider.
+
+    [bold]Examples:[/bold]
+
+        [dim]# List models for all providers[/dim]
+        $ sci run models
+
+        [dim]# List models for a specific provider[/dim]
+        $ sci run models --provider openai
+
+        [dim]# Show only model IDs (for scripting)[/dim]
+        $ sci run models --provider anthropic --ids
+    """
+    logger.info("list_models_invoked", provider=provider.value if provider else None)
+
+    # Filter by provider if specified
+    if provider:
+        providers_to_show = {provider.value: PROVIDER_MODELS.get(provider.value, [])}
+    else:
+        providers_to_show = PROVIDER_MODELS
+
+    if show_ids:
+        # Simple ID output for scripting
+        for prov_name, models in providers_to_show.items():
+            if not provider:
+                console.print(f"\n[bold cyan]{prov_name}[/bold cyan]")
+            for model in models:
+                console.print(model["id"])
+        return
+
+    # Create tables for each provider
+    total_models = 0
+
+    for prov_name, models in providers_to_show.items():
+        if not models:
+            continue
+
+        # Provider header
+        provider_display = prov_name.upper()
+        provider_colors = {
+            "openai": "green",
+            "anthropic": "#D4A574",
+            "google": "blue",
+            "azure": "cyan",
+            "aws": "#FF9900",
+            "huggingface": "yellow",
+        }
+        color = provider_colors.get(prov_name, "white")
+
+        table = Table(
+            title=f"[bold {color}]{provider_display}[/bold {color}] Models",
+            show_header=True,
+            header_style="bold cyan",
+            title_justify="left",
+        )
+        table.add_column("Model ID", style="green", no_wrap=True)
+        table.add_column("Name", style="white")
+        table.add_column("Description", style="dim")
+
+        for model in models:
+            table.add_row(
+                model["id"],
+                model["name"],
+                model["description"],
+            )
+            total_models += 1
+
+        console.print()
+        console.print(table)
+
+    # Summary
+    console.print()
+    console.print(f"[dim]Total models: {total_models}[/dim]")
+
+    if provider:
+        console.print(f"[dim]Filter applied: provider={provider.value}[/dim]")
+    else:
+        console.print()
+        console.print("[dim]Use --provider to filter by a specific provider.[/dim]")
+
+    console.print()
+    console.print("[bold]Usage:[/bold]")
+    console.print("  [dim]sci run --provider openai --model gpt-4o[/dim]")
+    console.print("  [dim]sci run --provider anthropic --model claude-3-5-sonnet-latest[/dim]")
+    console.print("  [dim]sci run --provider google --model gemini-1.5-pro[/dim]")
+    console.print()
+    console.print("[bold cyan]Note:[/bold cyan] SCI auto-adds LiteLLM prefixes:")
+    console.print("  [dim]• Anthropic: model → anthropic/model[/dim]")
+    console.print("  [dim]• Google: model → gemini/model[/dim]")
