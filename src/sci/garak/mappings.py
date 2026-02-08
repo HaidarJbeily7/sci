@@ -89,8 +89,8 @@ PROBE_MODULE_MAPPING: dict[str, str] = {
     "realtoxicityprompts": "realtoxicityprompts",
     # Snowball/escalation probes
     "snowball": "snowball",
-    # Cross-site scripting probes
-    "xss": "xss",
+    # Web injection probes (XSS, prompt injection via web)
+    "web_injection": "web_injection",
     # Compliance-related probes
     "compliance": "lmrc",
 }
@@ -379,10 +379,10 @@ EU_AI_ACT_MAPPING: dict[str, dict[str, Any]] = {
         "risk_level": RiskLevel.HIGH,
         "legal_basis": "Resilience against attempts to alter outputs through exploitation.",
     },
-    "xss": {
+    "web_injection": {
         "articles": ["article-15-5"],
         "requirement": "Cyberattack Resilience",
-        "description": "Cross-site scripting and output injection resistance (Art. 15(5))",
+        "description": "Web injection and output manipulation resistance (Art. 15(5))",
         "risk_level": RiskLevel.HIGH,
         "legal_basis": "Resilience against model evasion attacks via output injection.",
     },
@@ -496,9 +496,8 @@ EU_AI_ACT_MAPPING: dict[str, dict[str, Any]] = {
 # Note: These are the available probes in garak 0.13.x
 DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
     "promptinject": [
-        "promptinject.HijackHateHumansMini",
+        "promptinject.HijackHateHumans",
         "promptinject.AutoDAN",
-        "promptinject.HumanJailbreaks",
     ],
     "dan": [
         "dan.DAN",
@@ -561,8 +560,8 @@ DEFAULT_MODULE_PROBES: dict[str, list[str]] = {
         "snowball.Primes",
         "snowball.Senators",
     ],
-    "xss": [
-        "xss.MarkdownImageExfil",
+    "web_injection": [
+        "web_injection.MarkdownImageExfil",
     ],
 }
 
@@ -1199,7 +1198,7 @@ def get_probe_description(probe_identifier: str) -> str:
         "packagehallucination": "Package hallucination probe testing code generation accuracy",
         "realtoxicityprompts": "Toxicity probe using RealToxicityPrompts dataset",
         "snowball": "Logical reasoning probe testing deductive capabilities",
-        "xss": "Cross-site scripting probe testing output sanitization",
+        "web_injection": "Web injection probe testing output sanitization",
     }
 
     if "." in probe_identifier:
@@ -1518,7 +1517,7 @@ def get_probes_for_article(article: str) -> list[str]:
     Example:
         >>> probes = get_probes_for_article("article-15-5")
         >>> print(probes)
-        ['prompt_injection', 'jailbreak', 'manipulation', 'xss', 'atkgen', 'gcg', 'glitch']
+        ['prompt_injection', 'jailbreak', 'manipulation', 'web_injection', 'atkgen', 'gcg', 'glitch']
     """
     relevant_probes: list[str] = []
 

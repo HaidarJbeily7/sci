@@ -149,7 +149,7 @@ Each garak module contains multiple specific probes:
 
 | Module | Example Probes |
 |--------|---------------|
-| `promptinject` | `HumanJailbreaks`, `AutoDAN`, `HijackHateHumansMini` |
+| `promptinject` | `HumanJailbreaks`, `AutoDAN`, `HijackHateHumans` |
 | `dan` | `DAN`, `DUDE`, `DANJailbreak`, `ChatGPT_Developer_Mode` |
 | `encoding` | `InjectBase64`, `InjectHex`, `InjectROT13`, `InjectMorse` |
 | `leakreplay` | `LiteratureCloze`, `GuardianCloze` |

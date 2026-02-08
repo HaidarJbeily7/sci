@@ -27,7 +27,7 @@ logging:
 # -----------------------------------------------------------------------------
 output:
   # Directory for test results
-  directory: ./results-4-FEB-2026
+  directory: ./results-dirty-shirley-v1-9b-uncensor-ypk
 
   # Output format: json, yaml, html
   format: json
@@ -96,22 +96,64 @@ garak:
 
   # Mapping of SCI probe names to garak probe identifiers
   # This allows SCI to translate its probe names to garak's probe modules
+  # See docs/eu_ai_act_probe_mapping.md for EU AI Act compliance justification
   probe_categories:
-    # Prompt injection probes
+    # =========================================================================
+    # Cyberattack Resilience (Art. 15(5)) - Prompt Injection
+    # =========================================================================
     prompt_injection_basic: promptinject
     prompt_injection_advanced: promptinject
     prompt_injection_multilingual: promptinject
-    # Jailbreak probes
+
+    # =========================================================================
+    # Cyberattack Resilience (Art. 15(5)) - Jailbreaking
+    # =========================================================================
     jailbreak_basic: dan
     jailbreak_roleplay: dan
     jailbreak_encoding: encoding
-    # Extraction probes
+    jailbreak_gcg: gcg            # Gradient-based adversarial attacks
+    jailbreak_glitch: glitch      # Adversarial token attacks
+
+    # =========================================================================
+    # Data Governance (Art. 10, Art. 53) - Data Extraction
+    # =========================================================================
     extraction_system_prompt: leakreplay
     extraction_training_data: leakreplay
     extraction_model_info: leakreplay
-    # Manipulation probes
+
+    # =========================================================================
+    # Cyberattack Resilience (Art. 15(5)) - Malicious Output
+    # =========================================================================
     manipulation_output: malwaregen
     manipulation_context: malwaregen
+    web_injection_basic: web_injection  # Web injection attacks
+    atkgen_basic: atkgen          # Automated attack generation
+
+    # =========================================================================
+    # Harmful Content Prevention (Art. 9, Art. 95) - Toxicity
+    # =========================================================================
+    toxicity_prompts: realtoxicityprompts   # RealToxicityPrompts dataset
+    toxicity_continuation: continuation     # Harmful content continuation
+    toxicity_refusal: donotanswer           # Content moderation boundaries
+    toxicity_lmrc: lmrc                     # Language model risk categories
+
+    # =========================================================================
+    # Accuracy & Interpretability (Art. 13, Art. 15) - Hallucination
+    # =========================================================================
+    hallucination_factual: misleading             # Misinformation/false assertions
+    hallucination_packages: packagehallucination  # Code generation accuracy
+    hallucination_reasoning: snowball             # Logical reasoning accuracy
+
+    # =========================================================================
+    # Baseline Testing
+    # =========================================================================
+    goodside_baseline: goodside   # Known benign prompts for baseline
+
+    # =========================================================================
+    # Compliance-focused probes (mapped to lmrc for content policy testing)
+    # =========================================================================
+    compliance_transparency: lmrc
+    compliance_human_oversight: lmrc
 
   # Timeout configuration
   scan_timeout: 6000  # Overall scan timeout in seconds (1-7200)
@@ -203,12 +245,112 @@ profiles:
     max_parallel: 10
     timeout: 600
 
+  # ---------------------------------------------------------------------------
+  # Full Profile - All Available Garak Probes
+  # ---------------------------------------------------------------------------
+  # Based on COMPL-AI Framework (arXiv:2410.07959) EU AI Act interpretation
+  # See docs/eu_ai_act_probe_mapping.md for academic justification
+  full:
+    name: full
+    description: Complete security assessment with all garak probe modules mapped to EU AI Act requirements
+    probes:
+      # Cyberattack Resilience (Art. 15(5)) - Prompt Injection
+      - prompt_injection_basic
+      - prompt_injection_advanced
+      - prompt_injection_multilingual
+      # Cyberattack Resilience (Art. 15(5)) - Jailbreaking
+      - jailbreak_basic
+      - jailbreak_roleplay
+      - jailbreak_encoding
+      - jailbreak_gcg
+      - jailbreak_glitch
+      # Data Governance (Art. 10, Art. 53) - Data Extraction
+      - extraction_system_prompt
+      - extraction_training_data
+      - extraction_model_info
+      # Cyberattack Resilience (Art. 15(5)) - Malicious Output
+      - manipulation_output
+      - manipulation_context
+      - web_injection_basic
+      - atkgen_basic
+      # Harmful Content Prevention (Art. 9, Art. 95) - Toxicity
+      - toxicity_prompts
+      - toxicity_continuation
+      - toxicity_refusal
+      - toxicity_lmrc
+      # Accuracy & Interpretability (Art. 13, Art. 15) - Hallucination
+      - hallucination_factual
+      - hallucination_packages
+      - hallucination_reasoning
+      # Baseline Testing
+      - goodside_baseline
+      # Compliance
+      - compliance_transparency
+      - compliance_human_oversight
+    detectors:
+      - toxicity_basic
+      - toxicity_advanced
+      - toxicity_subtle
+      - leakage_basic
+      - leakage_pii
+      - leakage_credentials
+      - bias_detection
+      - bias_demographic
+      - hallucination_factual
+      - compliance_violation
+    compliance_tags:
+      # Cyberattack Resilience
+      - article-15-5
+      - article-55-1-d
+      # Robustness & Predictability
+      - article-15-1
+      - article-15-4
+      # Data Governance
+      - article-10
+      - article-10-5
+      - article-53-1-c
+      - article-53-1-e
+      # Harmful Content Prevention
+      - article-9
+      - article-95
+      # Transparency
+      - article-13
+      - article-13-1
+      - article-50
+      # Human Oversight
+      - article-14
+      # Fairness
+      - annex-iv-2-g
+      # Technical Documentation
+      - annex-iv
+    max_parallel: 10
+    timeout: 1800  # 30 minutes for full scan
+
 # -----------------------------------------------------------------------------
 # LLM Provider Configuration
 # -----------------------------------------------------------------------------
 # Provider credentials should be stored in .secrets.yaml or environment variables.
 # This section configures provider-specific settings (non-sensitive).
 providers:
+  # -------------------------------------------------------------------------
+  # OpenRouter - Unified access to 300+ models via single API
+  # -------------------------------------------------------------------------
+  # Use this provider to access models from multiple providers (OpenAI,
+  # Anthropic, Google, Meta, etc.) through a single API key.
+  # Set OPENROUTER_API_KEY in .secrets.yaml or environment variables.
+  # Model names use format: provider/model-name
+  # See: https://openrouter.ai/docs#models
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    timeout: 30
+    max_retries: 3
+    # Examples: openai/gpt-4, anthropic/claude-3-opus, google/gemini-pro,
+    #           meta-llama/llama-3-70b-instruct, mistralai/mistral-large
+    model: aion-labs/aion-1.0-mini
+
+  # -------------------------------------------------------------------------
+  # Direct Provider APIs (use these if you have provider-specific API keys)
+  # -------------------------------------------------------------------------
   openai:
     base_url: https://api.openai.com/v1
     timeout: 30
@@ -219,13 +361,12 @@ providers:
     base_url: https://api.anthropic.com
     timeout: 30
     max_retries: 3
-    model: claude-sonnet-4-20250514  # claude-3-opus was deprecated Jan 2026
+    model: claude-opus-4-6
 
   google:
-    location: us-central1
     timeout: 30
     max_retries: 3
-    model: gemini-pro
+    model: gemini-1.5-pro
 
   azure:
     api_version: 2024-02-15-preview

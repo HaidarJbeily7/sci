@@ -685,6 +685,8 @@ def _generate_html_report(scan_data: dict, include_evidence: bool = True) -> str
     # Build compliance HTML
     compliance_html = ""
     for article in compliance.get("article_details", []):
+        if article.get('findings_count', 0) == 0:
+            continue
         status_icon = "✓" if article.get("status") == "compliant" else "✗"
         status_color = "#22c55e" if article.get("status") == "compliant" else "#ef4444"
         compliance_html += f"""
@@ -1082,6 +1084,8 @@ Score = (pass_rate × 100) - severity_penalty
 """
 
     for article in compliance.get("article_details", []):
+        if article.get('findings_count', 0) == 0:
+            continue
         status_icon = "✓" if article.get("status") == "compliant" else "✗"
         md += f"| {article.get('article_id', '')} | {article.get('title', '')} | {status_icon} {article.get('status', '')} | {article.get('findings_count', 0)} |\n"
 

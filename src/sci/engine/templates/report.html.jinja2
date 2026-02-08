@@ -566,7 +566,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for article in report.compliance_assessment.article_details %}
+                    {% for article in report.compliance_assessment.article_details if article.findings_count > 0 %}
                     <tr>
                         <td><strong>{{ article.article_id }}</strong></td>
                         <td>{{ article.title }}</td>

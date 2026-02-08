@@ -297,7 +297,8 @@ def adapt_huggingface_config(
         env_vars["HUGGINGFACE_API_KEY"] = config.api_key
         env_vars["HF_TOKEN"] = config.api_key
         env_vars["HUGGING_FACE_HUB_TOKEN"] = config.api_key
-
+        env_vars["HF_INFERENCE_TOKEN"] = config.api_key
+        
     if config.base_url:
         additional_params["api_base"] = config.base_url
         env_vars["HF_INFERENCE_ENDPOINT"] = config.base_url

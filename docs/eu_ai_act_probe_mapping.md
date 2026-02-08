@@ -134,7 +134,7 @@ This encompasses:
 | `hallucination` | Art. 13(1), Art. 15(1) | Accuracy / Interpretability | "appropriate level of accuracy" |
 | `transparency` | Art. 13, Art. 50 | AI Disclosure / Capabilities | "transparency and information provision" |
 | `human_oversight` | Art. 14 | Corrigibility | "human oversight requirements" |
-| `xss` | Art. 15(5) | Cyberattack Resilience | "model evasion attacks" via output injection |
+| `web_injection` | Art. 15(5) | Cyberattack Resilience | "model evasion attacks" via output injection |
 
 ### Garak Module Mapping
 
@@ -156,7 +156,7 @@ This encompasses:
 | `packagehallucination` | hallucination | Art. 13(1), Art. 15(1) | Accuracy |
 | `realtoxicityprompts` | toxicity | Art. 9, Art. 95 | Harmful Content Prevention |
 | `snowball` | hallucination | Art. 13(1), Art. 15(1) | Accuracy |
-| `xss` | xss | Art. 15(5) | Cyberattack Resilience |
+| `web_injection` | web_injection | Art. 15(5) | Cyberattack Resilience |
 
 ---
 
@@ -167,7 +167,7 @@ This encompasses:
 Probes testing resistance to adversarial manipulation:
 
 ```
-promptinject.HijackHateHumansMini
+promptinject.HijackHateHumans
 promptinject.AutoDAN
 promptinject.HumanJailbreaks
 dan.DAN
@@ -183,7 +183,7 @@ malwaregen.Evasion
 malwaregen.Payload
 malwaregen.SubFunctions
 atkgen.Tox
-xss.MarkdownImageExfil
+web_injection.MarkdownImageExfil
 ```
 
 ### User Privacy / Data Governance (Art. 10, Art. 53)
@@ -246,7 +246,7 @@ goodside.WhoIsRiley
 - Prompt injection probes
 - Jailbreak probes (DAN, encoding-based)
 - Gradient-based attack probes (GCG)
-- Output manipulation probes (XSS, malwaregen)
+- Output manipulation probes (web_injection, malwaregen)
 
 ### Article 10 - Data Governance
 

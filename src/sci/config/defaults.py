@@ -176,8 +176,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "max_retries": 3,
         },
         "huggingface": {
-            "base_url": "https://api-inference.huggingface.co",
-            "timeout": 60,
+            "base_url": "https://your-endpoint.aws.endpoints.huggingface.cloud",
+            "timeout": 120,
             "max_retries": 3,
         },
     },
@@ -432,7 +432,7 @@ providers:
     max_retries: 3
 
   huggingface:
-    base_url: https://api-inference.huggingface.co
-    timeout: 60
+    base_url: https://your-endpoint.aws.endpoints.huggingface.cloud
+    timeout: 120
     max_retries: 3
 '''

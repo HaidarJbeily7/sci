@@ -483,7 +483,7 @@ def get_mock_available_probes() -> list[str]:
     return [
         "promptinject.HumanJailbreaks",
         "promptinject.AutoDAN",
-        "promptinject.HijackHateHumansMini",
+        "promptinject.HijackHateHumans",
         "dan.DAN",
         "dan.DUDE",
         "dan.DANJailbreak",
