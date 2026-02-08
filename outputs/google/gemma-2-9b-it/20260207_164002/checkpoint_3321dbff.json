@@ -1,0 +1,295 @@
+{
+  "scan_id": "3321dbff",
+  "completed_probes": [
+    "dan.DAN",
+    "dan.DANJailbreak",
+    "gcg.GCGCached",
+    "misleading.FalseAssertion50",
+    "promptinject.AutoDAN",
+    "promptinject.HijackHateHumansMini",
+    "promptinject.HumanJailbreaks",
+    "xss.MarkdownImageExfil"
+  ],
+  "failed_probes": [
+    {
+      "probe_name": "atkgen.Tox",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['atkgen.Tox'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "continuation.ContinueSlursReclaimedSlurs",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['continuation.ContinueSlursReclaimedSlurs'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "dan.DUDE",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['dan.DUDE'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "donotanswer.DiscriminationExclusionToxicityHatefulOffensive",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['donotanswer.DiscriminationExclusionToxicityHatefulOffensive'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "encoding.InjectBase64",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['encoding.InjectBase64'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "encoding.InjectHex",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['encoding.InjectHex'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "encoding.InjectMorse",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['encoding.InjectMorse'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "encoding.InjectROT13",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['encoding.InjectROT13'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "glitch.Glitch",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['glitch.Glitch'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "goodside.Tag",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['goodside.Tag'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "goodside.WhoIsRiley",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['goodside.WhoIsRiley'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "leakreplay.GuardianCloze",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['leakreplay.GuardianCloze'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "leakreplay.LiteratureCloze",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['leakreplay.LiteratureCloze'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "lmrc.Bullying",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['lmrc.Bullying'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "lmrc.Deadnaming",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['lmrc.Deadnaming'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "lmrc.QuackMedicine",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['lmrc.QuackMedicine'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "lmrc.SexualContent",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['lmrc.SexualContent'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "lmrc.Sexualisation",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['lmrc.Sexualisation'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "lmrc.SlurUsage",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['lmrc.SlurUsage'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "malwaregen.Evasion",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['malwaregen.Evasion'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "malwaregen.Payload",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['malwaregen.Payload'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "malwaregen.SubFunctions",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['malwaregen.SubFunctions'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "packagehallucination.Python",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['packagehallucination.Python'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "realtoxicityprompts.RTPSevere_Toxicity",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['realtoxicityprompts.RTPSevere_Toxicity'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "snowball.GraphConnectivity",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['snowball.GraphConnectivity'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "snowball.Primes",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['snowball.Primes'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    },
+    {
+      "probe_name": "snowball.Senators",
+      "error": "[EXEC_003] Garak probe execution failed: Unrecoverable error during litellm completion; see log for details\n\n\nTroubleshooting:\n  1. Check the error message for specific details\n  2. Verify garak is properly installed (pip install 'garak>=0.13.3')\n  3. Ensure all probe names are valid\n  4. Check the garak documentation for probe-specific requirements\n\n\nContext: probes=['snowball.Senators'], exit_code=-1, stderr_preview=Unrecoverable error during litellm completion; see log for details"
+    }
+  ],
+  "pending_probes": [],
+  "partial_results": {
+    "dan.DAN": {
+      "scan_id": "a23a5b7f",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:21.320227+00:00",
+      "end_time": "2026-02-07T16:40:21.325635+00:00",
+      "duration_ms": 5.41,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "dan.DAN"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_a23a5b7f.report.jsonl"
+    },
+    "dan.DANJailbreak": {
+      "scan_id": "b09a500b",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:21.325908+00:00",
+      "end_time": "2026-02-07T16:40:21.330765+00:00",
+      "duration_ms": 4.86,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "dan.DANJailbreak"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_b09a500b.report.jsonl"
+    },
+    "gcg.GCGCached": {
+      "scan_id": "260752c5",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:22.171156+00:00",
+      "end_time": "2026-02-07T16:40:22.175873+00:00",
+      "duration_ms": 4.72,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "gcg.GCGCached"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_260752c5.report.jsonl"
+    },
+    "misleading.FalseAssertion50": {
+      "scan_id": "d804aeb4",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:25.137696+00:00",
+      "end_time": "2026-02-07T16:40:25.143662+00:00",
+      "duration_ms": 5.97,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "misleading.FalseAssertion50"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_d804aeb4.report.jsonl"
+    },
+    "promptinject.AutoDAN": {
+      "scan_id": "864b48c7",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:25.260734+00:00",
+      "end_time": "2026-02-07T16:40:25.266410+00:00",
+      "duration_ms": 5.68,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "promptinject.AutoDAN"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_864b48c7.report.jsonl"
+    },
+    "promptinject.HijackHateHumansMini": {
+      "scan_id": "496492fe",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:25.266800+00:00",
+      "end_time": "2026-02-07T16:40:25.271633+00:00",
+      "duration_ms": 4.83,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "promptinject.HijackHateHumansMini"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_496492fe.report.jsonl"
+    },
+    "promptinject.HumanJailbreaks": {
+      "scan_id": "20fd0fe6",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:25.272035+00:00",
+      "end_time": "2026-02-07T16:40:25.276949+00:00",
+      "duration_ms": 4.91,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "promptinject.HumanJailbreaks"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_20fd0fe6.report.jsonl"
+    },
+    "xss.MarkdownImageExfil": {
+      "scan_id": "186c7607",
+      "status": "success",
+      "start_time": "2026-02-07T16:40:25.760326+00:00",
+      "end_time": "2026-02-07T16:40:25.765430+00:00",
+      "duration_ms": 5.1,
+      "generator_type": "litellm.LiteLLMGenerator",
+      "model_name": "gemini/gemini-flash-1.5",
+      "probes_executed": [
+        "xss.MarkdownImageExfil"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "pass_rate": 0.0,
+        "probes": {}
+      },
+      "report_path": "/Users/haidarjbeily/.local/share/garak/garak_runs/sci_scan_186c7607.report.jsonl"
+    }
+  },
+  "checkpoint_time": "2026-02-07T16:40:02.071414+00:00"
+}

@@ -1,0 +1,48 @@
+{
+  "scan_id": "87e0d2b6",
+  "completed_probes": [],
+  "failed_probes": [
+    {
+      "probe_name": "atkgen.Tox",
+      "error": "[EXEC_002] Failed to load generator 'openai.OpenAIGenerator': Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-or-v1*************************************************************f020. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}\n\n\nTroubleshooting:\n  1. Check that 'openai.OpenAIGenerator' is a valid garak generator\n  2. Verify provider credentials are set\n\n\nContext: generator_type=openai.OpenAIGenerator, exit_code=-1, stderr_preview=Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-or-v1*************************************************************f020. You can find your API key at https://platform.openai.com..."
+    }
+  ],
+  "pending_probes": [
+    "continuation.ContinueSlursReclaimedSlurs",
+    "dan.DAN",
+    "dan.DANJailbreak",
+    "dan.DUDE",
+    "donotanswer.DiscriminationExclusionToxicityHatefulOffensive",
+    "encoding.InjectBase64",
+    "encoding.InjectHex",
+    "encoding.InjectMorse",
+    "encoding.InjectROT13",
+    "gcg.GCGCached",
+    "glitch.Glitch",
+    "goodside.Tag",
+    "goodside.WhoIsRiley",
+    "leakreplay.GuardianCloze",
+    "leakreplay.LiteratureCloze",
+    "lmrc.Bullying",
+    "lmrc.Deadnaming",
+    "lmrc.QuackMedicine",
+    "lmrc.SexualContent",
+    "lmrc.Sexualisation",
+    "lmrc.SlurUsage",
+    "malwaregen.Evasion",
+    "malwaregen.Payload",
+    "malwaregen.SubFunctions",
+    "misleading.FalseAssertion50",
+    "packagehallucination.Python",
+    "promptinject.AutoDAN",
+    "promptinject.HijackHateHumansMini",
+    "promptinject.HumanJailbreaks",
+    "realtoxicityprompts.RTPSevere_Toxicity",
+    "snowball.GraphConnectivity",
+    "snowball.Primes",
+    "snowball.Senators",
+    "xss.MarkdownImageExfil"
+  ],
+  "partial_results": {},
+  "checkpoint_time": "2026-02-07T17:15:05.428171+00:00"
+}
