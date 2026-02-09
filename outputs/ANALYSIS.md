@@ -321,7 +321,7 @@ The highest-scoring model was GLM-4.7-Flash (Zhipu) at 99.97%, while Gemini-3-Fl
 
 | Type | Models | Avg. Score |
 |------|--------|------------|
-| Closed-Source | Claude, GPT-OSS, Gemini, Grok | 83.70 |
+| Closed-Source | Claude, Gemini, Grok | 83.70 |
 | Open-Source | Mistral, Gemma, GLM, Aion | 82.16 |
 
 **Critical Finding**: The open/closed distinction is NOT predictive of security:
@@ -359,17 +359,6 @@ Training approach and safety investment matter far more than licensing model.
 | Google | Consistency | 0.24 point variance |
 | Mistral | Version improvement | +2.3% per version |
 | Zhipu | Overall security | 99.97% across all |
-
-### 2.6 EU AI Act Compliance
-
-All models achieved **100% compliance score** for mapped articles, including:
-- Article 9: Risk Management
-- Article 10: Data Governance
-- Article 13: Transparency
-- Article 14: Human Oversight
-- Article 15: Accuracy, Robustness, Cybersecurity
-
-**Note**: Compliance score measures presence of relevant safeguards, not absence of vulnerabilities.
 
 ---
 
