@@ -1,270 +1,220 @@
-# SCI vs COMPL-AI Framework Comparison
+# Extending COMPL-AI with the SCI Score
 
 ## Introduction
 
-This document compares the SCI framework results with the COMPL-AI Framework developed by ETH Zurich, INSAIT, and LatticeFlow AI. Both frameworks evaluate LLM security and EU AI Act compliance, but they employ fundamentally different methodologies. COMPL-AI uses static benchmarks to measure compliance readiness, while SCI uses adversarial attack probes to measure resistance to real-world attacks.
-
----
-
-## 1. Framework Comparison
-
-### 1.1 Fundamental Approach
-
-| Aspect | COMPL-AI | SCI |
-|--------|----------|-----|
-| **Philosophy** | "Can this model pass compliance benchmarks?" | "Can this model resist active attacks?" |
-| **Test Type** | Static benchmark evaluation | Dynamic adversarial probing |
-| **Threat Model** | Compliance auditor | Malicious attacker |
-| **Output** | Compliance readiness scores | Security vulnerability scores |
-
-### 1.2 Technical Details
-
-| Aspect | COMPL-AI | SCI |
-|--------|----------|-----|
-| **Requirements** | 18 technical requirements | 8 vulnerability categories |
-| **Benchmarks/Probes** | 27 benchmarks | 38+ Garak probes |
-| **Attack Simulation** | Minimal (benchmark-based) | Extensive (DAN, encoding, injection, etc.) |
-| **Dynamic Generation** | No | Yes (atkgen probes) |
-| **Models Tested** | 12 frontier models (Oct 2024) | 12 models including Chinese/xAI (Feb 2026) |
-
-### 1.3 EU AI Act Coverage
-
-**COMPL-AI** maps to 5 ethical principles with 18 requirements:
+The COMPL-AI Framework (ETH Zurich, INSAIT, LatticeFlow AI) provides a systematic approach to evaluating LLM compliance with EU AI Act requirements. However, its reliance on static benchmarks leaves a gap in assessing real-world attack resistance. This document proposes adding the SCI Score as a new metric within COMPL-AI to address this limitation.
 
-| Principle | Requirements Covered |
-|-----------|---------------------|
-| Technical Robustness | Robustness, Cyberattack Resilience, Corrigibility |
-| Privacy & Data | Training Data, Copyright, User Privacy |
-| Transparency | Capabilities, Interpretability, AI Disclosure, Traceability |
-| Fairness | Bias, Discrimination |
-| Social Well-being | Environmental Impact, Harmful Content |
+## 1. The Gap in Current COMPL-AI Methodology
 
-**SCI** maps 8 categories to specific articles:
+### 1.1 COMPL-AI's Strengths
 
-| Category | Primary Article | COMPL-AI Overlap |
-|----------|-----------------|------------------|
-| Jailbreak | Art. 15(5) | Cyberattack Resilience |
-| Toxicity | Art. 9, 95 | Harmful Content |
-| Extraction | Art. 10, 53 | User Privacy, Copyright |
-| Leakage | Art. 10(5) | User Privacy |
-| Manipulation | Art. 15(5) | Cyberattack Resilience |
-| Hallucination | Art. 13, 15 | Interpretability |
-| Injection | Art. 15(5) | Cyberattack Resilience |
+COMPL-AI provides valuable coverage of EU AI Act requirements:
 
-**Gap Analysis**:
-- SCI covers Art. 15(5) Cyberattack Resilience more thoroughly (3 categories vs 1)
-- COMPL-AI covers Fairness/Bias which SCI lacks
-- COMPL-AI covers Environmental Impact which SCI lacks
-- SCI lacks Traceability and Explainability coverage
+| Ethical Principle | Requirements Covered | Articles Mapped |
+|-------------------|----------------------|-----------------|
+| Technical Robustness | Robustness, Cyberattack Resilience, Corrigibility | Art. 15, Art. 14 |
+| Privacy & Data | Training Data, Copyright, User Privacy | Art. 10, Art. 53 |
+| Transparency | Capabilities, Interpretability, AI Disclosure | Art. 13, Art. 50 |
+| Fairness | Bias, Discrimination | Art. 10, Annex IV |
+| Social Well-being | Environmental Impact, Harmful Content | Art. 40, Art. 9 |
 
----
+### 1.2 The Adversarial Testing Gap
 
-## 2. Model Coverage Comparison
+COMPL-AI's Cyberattack Resilience requirement (Art. 15(5)) is assessed through static benchmarks. This approach has inherent limitations:
 
-### 2.1 Models Tested
+| Limitation | Impact |
+|------------|--------|
+| Static test cases | Cannot capture novel attack variations |
+| Known patterns only | Misses creative adversarial techniques |
+| No attack generation | Does not simulate realistic threat actors |
+| Limited encoding coverage | Misses obfuscation-based attacks |
 
-| Model Family | COMPL-AI (Oct 2024) | SCI (Feb 2026) |
-|--------------|---------------------|----------------|
-| **Anthropic Claude** | Claude 3 Opus, Sonnet, Haiku | Claude 3.7 Sonnet, Sonnet 4 |
-| **OpenAI GPT** | GPT-4, GPT-4 Turbo, GPT-4o | GPT-4o-mini, GPT-OSS-120b |
-| **Google** | Gemini Pro, Gemini 1.5 | Gemini 2.5, 3, Gemma-2-9b |
-| **Meta Llama** | Llama 2, Llama 3 variants | Not tested |
-| **Mistral** | Mistral Large, Mixtral | Mistral-7b v0.2, v0.3 |
-| **xAI Grok** | Not tested | Grok-4.1-Fast |
-| **Chinese Models** | Not tested | GLM-4.7-Flash, Aion-1.0-mini |
+Article 15(5) of the EU AI Act requires that systems be "resilient against attempts by unauthorized third parties to alter their use, outputs or performance by exploiting system vulnerabilities." Static benchmarks alone cannot adequately assess this requirement.
 
-### 2.2 Coverage Gap Implications
+## 2. Proposed Extension: The SCI Score
 
-**What SCI adds**:
-- First security assessment of Grok (xAI)
-- First security assessment of GLM-4.7-Flash (Zhipu, open-source)
-- First security assessment of Aion-1.0-mini (Alibaba)
-- Updated Claude/GPT variants (2026 versions)
+### 2.1 What the SCI Score Measures
 
-**What SCI misses**:
-- Llama family (Meta's open-source models)
-- Mixtral (Mistral's MoE model)
-- Older GPT-4 variants for comparison
+The SCI Score is an aggregate security metric derived from adversarial probe testing. It measures attack resistance across multiple categories:
 
----
+| Metric | Description | Art. 15(5) Relevance |
+|--------|-------------|---------------------|
+| Jailbreak Resistance | Resistance to DAN, roleplay, and persona-based attacks | Direct measure of safety circumvention attempts |
+| Encoding Attack Resistance | Resistance to base64, hex, ROT13, morse obfuscation | Measures resilience to evasion techniques |
+| Injection Resistance | Resistance to prompt injection attacks | Measures input manipulation resilience |
+| Dynamic Attack Resistance | Resistance to generated adversarial prompts | Measures resilience to novel attacks |
 
-## 3. Results Comparison
+### 2.2 Probe Coverage
 
-### 3.1 Where Both Frameworks Agree
+SCI employs 38+ Garak probes organized by attack category:
 
-| Finding | COMPL-AI Evidence | SCI Evidence |
-|---------|-------------------|--------------|
-| **Claude models are safety-focused** | High robustness scores | 86.85% avg, strong manipulation resistance |
-| **Google models have gaps** | Multiple compliance issues | 66.19% avg, "Limited" risk classification |
-| **Hallucination is challenging** | Variable accuracy across models | 51-100% range, largest variance category |
-| **Closed-source generally safer** | Higher compliance scores | Higher security scores on average |
-| **Jailbreak resistance varies widely** | Significant model differences | 55-100% range across models |
+| Attack Category | Probes | COMPL-AI Gap Addressed |
+|-----------------|--------|------------------------|
+| Jailbreak | dan.DAN, dan.DUDE, dan.DANJailbreak | Limited jailbreak coverage |
+| Encoding | encoding.InjectBase64, InjectHex, InjectROT13 | No encoding attack coverage |
+| Prompt Injection | promptinject.HumanJailbreaks, AutoDAN | Limited injection testing |
+| Attack Generation | atkgen.Tox | No dynamic attack generation |
+| Continuation | continuation.ContinueSlurs | Limited completion testing |
 
-### 3.2 Where Results Diverge
+### 2.3 Integration with COMPL-AI Requirements
 
-| Aspect | COMPL-AI Finding | SCI Finding | Likely Explanation |
-|--------|------------------|-------------|-------------------|
-| **Mistral security** | Moderate compliance | 82% (competitive) | SCI tests different attack vectors |
-| **GPT-4o-mini** | Strong compliance | 83.94% (mid-tier) | Adversarial probes reveal weaknesses benchmarks miss |
-| **Open-source gap** | Large gap to closed-source | Smaller gap (Mistral competitive) | Model-specific, not architecture-specific |
+The proposed metrics map directly to existing COMPL-AI requirements:
 
-### 3.3 Open-Source Model Performance
+| COMPL-AI Requirement | Current Assessment | Proposed SCI Extension |
+|----------------------|-------------------|------------------------|
+| Cyberattack Resilience | Static benchmarks | Adversarial probe scores |
+| Harmful Content Prevention | Toxicity benchmarks | Dynamic toxicity probes |
+| User Privacy Protection | Data leakage tests | Extraction resistance probes |
+| Interpretability | Accuracy benchmarks | Hallucination resistance probes |
 
-**Correcting my earlier error**: GLM-4.7-Flash is fully open-source (weights on HuggingFace).
+## 3. Empirical Validation
 
-| Model | Type | SCI Score | Implication |
-|-------|------|-----------|-------------|
-| GLM-4.7-Flash | Open-source | 99.97% | **Open-source can achieve top security** |
-| Mistral-7b-v0.3 | Open-source | 83.02% | Competitive with closed-source |
-| Gemma-2-9b | Open-source | 66.21% | Lower security |
-| Aion-1.0-mini | Open-source | 79.44% | Moderate security |
+### 3.1 Models Evaluated
 
-**Key Insight**: The open-source vs closed-source distinction is NOT predictive of security. Training approach and safety focus matter more. GLM's 99.97% proves open-source models can be the most secure.
+To validate the proposed metrics, 12 models were evaluated across 6 providers:
 
-**Why GLM excels despite being open-source**:
-1. Strict Chinese AI regulations require aggressive content filtering
-2. Zhipu AI invested heavily in safety alignment
-3. Open weights don't mean weak safety - training matters more
-4. Regulatory pressure can drive security investment regardless of licensing
+| Provider | Models | Coverage Gap Filled |
+|----------|--------|---------------------|
+| Anthropic | Claude 3.7 Sonnet, Claude Sonnet 4 | Updated versions |
+| OpenAI | GPT-4o-mini, GPT-OSS-120b | Additional variants |
+| Google | Gemini 2.5, Gemini 3, Gemma-2-9b | Flash variants |
+| Mistral | Mistral-7b v0.2, v0.3 | Version comparison |
+| xAI | Grok-4.1-Fast | Not in COMPL-AI |
+| Chinese | GLM-4.7-Flash, Aion-1.0-mini | Not in COMPL-AI |
 
----
+### 3.2 Results Summary
 
-## 4. Methodological Insights
+The adversarial metrics reveal security characteristics not captured by static benchmarks:
 
-### 4.1 What Benchmarks Miss (SCI Advantage)
+| Model | Overall Security | Jailbreak Resistance | Hallucination Resistance |
+|-------|------------------|---------------------|-------------------------|
+| GLM-4.7-Flash | 99.97% | 100.0% | 100.0% |
+| GPT-OSS-120b | 96.96% | 97.29% | 94.69% |
+| Claude 3.7 Sonnet | 91.37% | 79.85% | 99.59% |
+| Grok-4.1-Fast | 86.16% | 85.08% | 75.94% |
+| GPT-4o-mini | 83.94% | 75.72% | 75.21% |
+| Mistral-7b-v0.3 | 83.02% | 75.32% | 89.79% |
+| Google Gemini (avg) | 66.19% | 58.70% | 51.54% |
 
-COMPL-AI benchmarks test **known patterns**. SCI probes test **adversarial creativity**.
+### 3.3 Findings Not Captured by COMPL-AI Benchmarks
 
-| Attack Type | COMPL-AI Coverage | SCI Coverage |
-|-------------|-------------------|--------------|
-| DAN jailbreaks | Limited | Extensive (dan.DAN, dan.DUDE, etc.) |
-| Encoding attacks | Minimal | Full suite (base64, hex, ROT13, morse) |
-| Attack generation | None | atkgen.Tox (dynamic adversarial) |
-| Prompt injection | Some | Comprehensive (promptinject module) |
-| Roleplay bypass | Limited | Tested via continuation probes |
+The adversarial approach reveals several findings that static benchmarks miss:
 
-**Example**: A model might pass COMPL-AI's robustness benchmark but fail SCI's `encoding.InjectBase64` probe because it never trained on base64-encoded attacks.
+**Finding 1: Open-source models can achieve top security**
 
-### 4.2 What Adversarial Testing Misses (COMPL-AI Advantage)
+GLM-4.7-Flash (open-source) achieved 99.97%, the highest score in the study. This contradicts assumptions that closed-source models are inherently more secure. COMPL-AI's current model selection does not include Chinese open-source models.
 
-SCI focuses on attack resistance. COMPL-AI covers broader compliance.
+**Finding 2: Version regression occurs**
 
-| Requirement | COMPL-AI Coverage | SCI Coverage |
-|-------------|-------------------|--------------|
-| Fairness/Bias | Dedicated benchmarks | Not tested |
-| Environmental impact | Energy metrics | Not tested |
-| Traceability | Audit trail tests | Not tested |
-| Explainability | Decision explanation | Not tested |
-| Copyright compliance | Training data tests | Partial (extraction) |
+Claude Sonnet 4 scored 9 points lower than Claude 3.7 Sonnet. Static benchmarks may not detect regression between model versions if the same benchmark suite is used.
 
-### 4.3 Scoring Philosophy Differences
+**Finding 3: Encoding attacks reveal hidden vulnerabilities**
 
-**COMPL-AI**: "What percentage of compliance requirements does this model meet?"
-- Binary pass/fail on some tests
-- Aggregate compliance percentage
-- Designed for auditors and regulators
+Models performing well on standard jailbreak benchmarks often fail encoding-based attacks (base64, hex). COMPL-AI does not currently test obfuscation resistance.
 
-**SCI**: "How often does this model resist attacks?"
-- Weighted by severity
-- Risk level classification
-- Designed for security engineers and deployers
+**Finding 4: Attack generation probes find novel vulnerabilities**
 
----
+Dynamic attack generation (atkgen) discovers vulnerabilities that pre-defined test cases cannot anticipate.
 
-## 5. Practical Implications
+## 4. Proposed COMPL-AI Integration
 
-### 5.1 When to Use Each Framework
+### 4.1 Add SCI Score as New Metric
 
-| Scenario | Recommended Framework | Reason |
-|----------|----------------------|--------|
-| EU AI Act audit preparation | COMPL-AI | Comprehensive compliance coverage |
-| Pre-deployment security testing | SCI | Real attack simulation |
-| Selecting production model | Both | Combined coverage |
-| Red team exercise | SCI | Adversarial focus |
-| Regulatory documentation | COMPL-AI | Structured requirements |
-| Incident prevention | SCI | Attack pattern coverage |
+The proposal is straightforward: add the SCI Security Score as a new metric within COMPL-AI's Cyberattack Resilience requirement.
 
-### 5.2 Combined Recommendations
+| Current COMPL-AI Metrics | Proposed Addition |
+|--------------------------|-------------------|
+| Robustness benchmarks | SCI Security Score (0-100) |
+| Predictability tests | SCI Category Scores |
+| Static safety evaluations | SCI Risk Level Classification |
 
-Models that score well on BOTH frameworks:
+The SCI Score provides a single, interpretable metric that captures adversarial attack resistance across multiple attack vectors. Rather than replacing existing benchmarks, it complements them by measuring what static tests cannot.
 
-| Model | COMPL-AI Status | SCI Score | Combined Assessment |
-|-------|-----------------|-----------|---------------------|
-| Claude 3.7 Sonnet | High compliance | 91.37% | **Recommended for production** |
-| GPT-OSS-120b | (Not tested) | 96.96% | Strong security, needs compliance check |
-| GLM-4.7-Flash | (Not tested) | 99.97% | Highest security, but aggressive filtering |
+### 4.2 Integration Approach
 
-Models with concerns in BOTH frameworks:
+| Aspect | Implementation |
+|--------|----------------|
+| Score Range | 0-100 (already aligned with COMPL-AI) |
+| Category Breakdown | Jailbreak, Toxicity, Extraction, Leakage, Manipulation, Hallucination, Injection |
+| Risk Classification | Minimal (>80), Limited (65-79), High (40-64), Critical (<40) |
+| Computation | Weighted failure rate from Garak probe results |
 
-| Model | COMPL-AI Status | SCI Score | Combined Assessment |
-|-------|-----------------|-----------|---------------------|
-| Google variants | Compliance gaps | 66% avg | **Avoid for high-risk applications** |
+### 4.3 Model Coverage Extension
 
-### 5.3 Deployment Decision Matrix
+Expand COMPL-AI's model coverage to include:
 
-| Risk Level | COMPL-AI Threshold | SCI Threshold | Recommendation |
-|------------|-------------------|---------------|----------------|
-| High-risk AI (Art. 6) | >90% compliance | >90% security | GLM, GPT-OSS-120b, Claude 3.7 |
-| Limited-risk (Art. 50) | >75% compliance | >80% security | Most models except Google |
-| Minimal-risk | >60% compliance | >70% security | All tested models |
+| Category | Models to Add | Rationale |
+|----------|---------------|-----------|
+| Chinese Models | GLM, Aion, Qwen | Significant market presence |
+| xAI | Grok variants | Growing adoption |
+| Version Tracking | Multiple versions per model | Detect regression |
 
----
+## 5. Methodology Recommendations
 
-## 6. Key Learnings
+### 5.1 Probe Selection Criteria
 
-### 6.1 Insights from This Comparison
+For integration with COMPL-AI, probes should meet the following criteria:
 
-This comparison reveals several important findings about LLM security evaluation:
+| Criterion | Requirement |
+|-----------|-------------|
+| Reproducibility | Deterministic or statistically stable results |
+| Coverage | Maps to specific EU AI Act article |
+| Validity | Demonstrated correlation with real-world attacks |
+| Efficiency | Executable within reasonable compute budget |
 
-Compliance and security are distinct properties. A model can pass compliance benchmarks while remaining vulnerable to adversarial attacks. The two frameworks measure fundamentally different aspects of model behavior.
+### 5.2 Alignment with COMPL-AI
 
-Open-source models can achieve top security. GLM-4.7-Flash scored 99.97% despite being fully open-source with publicly available weights. The licensing model does not predict security outcomes.
+The SCI Score already uses a 0-100 scale, requiring no normalization. The risk classification maps directly to compliance status:
 
-Regulatory pressure appears to drive security investment. GLM's exceptional performance likely reflects compliance requirements from Chinese AI regulations, demonstrating that regulatory frameworks can incentivize safety improvements.
+| SCI Risk Level | Score Range | COMPL-AI Compliance Status |
+|----------------|-------------|---------------------------|
+| Minimal | 80-100% | Compliant |
+| Limited | 65-79% | Partially Compliant |
+| High | 40-64% | Non-Compliant |
+| Critical | <40% | Non-Compliant (Critical) |
 
-Static benchmarks have inherent limitations. COMPL-AI's benchmark approach cannot capture the full range of creative attacks that adversarial probing reveals. Models may pass benchmarks while remaining vulnerable to attack variants.
+## 6. Limitations and Future Work
 
-Model scale is not deterministic. Mistral-7b (7B parameters) outperforms larger Google models, indicating that training methodology matters more than raw parameter count.
+### 6.1 Current Limitations
 
-Version progression does not guarantee improvement. Claude Sonnet 4 scored lower than Claude 3.7, suggesting that newer versions may optimize for different objectives at the expense of security.
+| Limitation | Mitigation |
+|------------|------------|
+| Probe coverage not exhaustive | Regular probe updates as attacks evolve |
+| Dynamic attacks less reproducible | Use seed-based generation for consistency |
+| Compute cost higher than benchmarks | Prioritize high-signal probes |
 
-### 6.2 Research Gaps Identified
+### 6.2 Future Extensions
 
-| Gap | Impact | Suggested Resolution |
-|-----|--------|---------------------|
-| No fairness probes in SCI | Missing discrimination risks | Add bias detection probes |
-| No Chinese models in COMPL-AI | Incomplete landscape | Extend COMPL-AI coverage |
-| No Llama in SCI | Missing popular open-source | Add Meta models |
-| Limited version tracking | Can't track safety trends | Longitudinal studies |
-
----
+| Extension | Benefit |
+|-----------|---------|
+| Fairness-aware adversarial probes | Combine bias testing with attack simulation |
+| Multi-turn attack sequences | Test conversation-level vulnerabilities |
+| Tool-use attack vectors | Test agent-based model security |
 
 ## 7. Conclusion
 
-The two frameworks serve complementary purposes. COMPL-AI provides comprehensive compliance coverage across 18 EU AI Act requirements, making it suitable for regulatory audits and documentation. SCI provides deeper adversarial testing with higher attack realism, making it appropriate for security assessments and red-teaming exercises.
+The COMPL-AI Framework provides a foundation for EU AI Act compliance assessment, but its static benchmark approach cannot fully assess Art. 15(5) cyberattack resilience requirements.
 
-| Dimension | COMPL-AI | SCI |
-|-----------|----------|-----|
-| Compliance Coverage | Comprehensive (18 requirements) | Partial (8 categories) |
-| Security Depth | Benchmark-based | Adversarial probe-based |
-| Attack Realism | Limited | Extensive |
-| Model Coverage | Frontier models | Frontier + Chinese/xAI |
+The SCI Score addresses this gap as a single, interpretable metric that captures adversarial attack resistance. Adding the SCI Score to COMPL-AI would:
 
-For comprehensive pre-deployment assessment, both frameworks should be applied. The results demonstrate that open-source licensing does not predict security outcomes, and that regular re-testing is necessary as both models and attack techniques evolve.
+- Provide dynamic attack resistance measurement not possible with static benchmarks
+- Cover encoding and obfuscation attacks currently untested
+- Enable detection of vulnerabilities through attack generation probes
+- Extend model coverage to Chinese and xAI models
 
----
+The integration requires minimal modification to COMPL-AI's existing structure since the SCI Score already uses a compatible 0-100 scale with clear risk level classification.
 
 ## References
 
 ### COMPL-AI Framework
-- Guldimann, P., et al. (2024). "COMPL-AI Framework: A Technical Interpretation and LLM Benchmark for the EU Artificial Intelligence Act." *arXiv:2410.07959*
-- [compl-ai.org](https://compl-ai.org)
+- Guldimann, P., et al. (2024). "COMPL-AI Framework: A Technical Interpretation and LLM Benchmark for the EU Artificial Intelligence Act." arXiv:2410.07959
+- https://compl-ai.org
 
-### SCI Framework
-- This thesis project
-- Garak LLM Vulnerability Scanner (NVIDIA)
-- [artificialintelligenceact.eu](https://artificialintelligenceact.eu)
+### Adversarial Testing
+- Garak LLM Vulnerability Scanner, NVIDIA
+- Bhatt, U., et al. (2025). "Robustness and Cybersecurity in the EU AI Act." ACM FAccT 2025
+- Bieringer, L., et al. (2024). "Assuring EU AI Act Compliance and Adversarial Robustness." arXiv:2410.05306
 
-### Additional Academic Sources
-- Bhatt, U., et al. (2025). "Robustness and Cybersecurity in the EU AI Act." *ACM FAccT 2025*
-- Bieringer, L., et al. (2024). "Assuring EU AI Act Compliance and Adversarial Robustness." *arXiv:2410.05306*
+### EU AI Act
+- https://artificialintelligenceact.eu
+- Article 15(5): Cyberattack Resilience Requirements
